@@ -1,0 +1,238 @@
+id,exchange_id,title,category,state,office,district,party,race_key
+388,1077,Will the Republican Party win the Rhode Island Senate?,Election Outcome,RI,Senate,,R,RI-Senate
+387,1076,Will the Democratic Party win the Rhode Island Senate?,Election Outcome,RI,Senate,,D,RI-Senate
+386,1075,Will the Republican Party win the Delaware Senate?,Election Outcome,DE,Senate,,R,DE-Senate
+385,1074,Will the Republican Party win the Rhode Island Governor?,Election Outcome,RI,Governor,,R,RI-Governor
+384,1073,Will the Democratic Party win the Rhode Island Governor?,Election Outcome,RI,Governor,,D,RI-Governor
+383,1072,Will the Democratic Party win the Oklahoma Senate?,Election Outcome,OK,Senate,,D,OK-Senate
+382,1071,Will the Republican Party win the New Hampshire Senate?,Election Outcome,NH,Senate,,R,NH-Senate
+381,1070,Will the Democratic Party win the New Hampshire Senate?,Election Outcome,NH,Senate,,D,NH-Senate
+380,1069,Will the Republican Party win the Massachusetts Senate?,Election Outcome,MA,Senate,,R,MA-Senate
+379,1068,Will the Democratic Party win the Massachusetts Senate?,Election Outcome,MA,Senate,,D,MA-Senate
+378,1067,Will the Republican Party win the Alaska Senate?,Election Outcome,AK,Senate,,R,AK-Senate
+377,1066,Will the Democratic Party win the Alaska Senate?,Election Outcome,AK,Senate,,D,AK-Senate
+376,1065,Will the Republican Party win the NH-01 House race?,Election Outcome,NH,House,01,R,NH-House-01
+375,1064,Will the Democratic Party win the NH-01 House race?,Election Outcome,NH,House,01,D,NH-House-01
+374,1063,Will the Republican Party win the Oklahoma Governor?,Election Outcome,OK,Governor,,R,OK-Governor
+373,1062,Will the Republican Party win the New Hampshire Governor?,Election Outcome,NH,Governor,,R,NH-Governor
+372,1061,Will the Democratic Party win the New Hampshire Governor?,Election Outcome,NH,Governor,,D,NH-Governor
+371,1060,Will the Republican Party win the Massachusetts Governor?,Election Outcome,MA,Governor,,R,MA-Governor
+370,1059,Will the Democratic Party win the Massachusetts Governor?,Election Outcome,MA,Governor,,D,MA-Governor
+369,1058,Will the Republican Party win the Alaska Governor?,Election Outcome,AK,Governor,,R,AK-Governor
+368,1057,Will the Democratic Party win the Alaska Governor?,Election Outcome,AK,Governor,,D,AK-Governor
+366,1055,Will the Republican Party win the Wyoming Senate?,Election Outcome,WY,Senate,,R,WY-Senate
+365,1054,Will the Democratic Party win the Wyoming Senate?,Election Outcome,WY,Senate,,D,WY-Senate
+364,1053,Will the Republican Party win the Virginia Senate?,Election Outcome,VA,Senate,,R,VA-Senate
+363,1052,Will the Republican Party win the Tennessee Senate?,Election Outcome,TN,Senate,,R,TN-Senate
+362,1051,Will the Democratic Party win the Tennessee Senate?,Election Outcome,TN,Senate,,D,TN-Senate
+361,1050,Will the Republican Party win the Minnesota Senate?,Election Outcome,MN,Senate,,R,MN-Senate
+360,1049,Will the Democratic Party win the Minnesota Senate?,Election Outcome,MN,Senate,,D,MN-Senate
+359,1048,Will the Republican Party win the Michigan Senate?,Election Outcome,MI,Senate,,R,MI-Senate
+358,1047,Will the Democratic Party win the Michigan Senate?,Election Outcome,MI,Senate,,D,MI-Senate
+357,1046,Will the Republican Party win the Kansas Senate?,Election Outcome,KS,Senate,,R,KS-Senate
+356,1045,Will the Democratic Party win the Kansas Senate?,Election Outcome,KS,Senate,,D,KS-Senate
+355,1044,Will the Republican Party win the Florida Senate?,Election Outcome,FL,Senate,,R,FL-Senate
+354,1043,Will the Democratic Party win the Florida Senate?,Election Outcome,FL,Senate,,D,FL-Senate
+353,1042,Will the Democratic Party win the Delaware Senate?,Election Outcome,DE,Senate,,D,DE-Senate
+352,1041,Will the Republican Party win the WI-03 House race?,Election Outcome,WI,House,03,R,WI-House-03
+351,1040,Will the Democratic Party win the WI-03 House race?,Election Outcome,WI,House,03,D,WI-House-03
+350,1039,Will the Republican Party win the WI-01 House race?,Election Outcome,WI,House,01,R,WI-House-01
+349,1038,Will the Democratic Party win the WI-01 House race?,Election Outcome,WI,House,01,D,WI-House-01
+348,1037,Will the Republican Party win the WA-03 House race?,Election Outcome,WA,House,03,R,WA-House-03
+347,1036,Will the Democratic Party win the WA-03 House race?,Election Outcome,WA,House,03,D,WA-House-03
+346,1035,Will the Republican Party win the VA-07 House race?,Election Outcome,VA,House,07,R,VA-House-07
+345,1034,Will the Republican Party win the VA-05 House race?,Election Outcome,VA,House,05,R,VA-House-05
+344,1033,Will the Democratic Party win the VA-05 House race?,Election Outcome,VA,House,05,D,VA-House-05
+343,1032,Will the Democratic Party win the VA-02 House race?,Election Outcome,VA,House,02,D,VA-House-02
+342,1031,Will the Democratic Party win the VA-01 House race?,Election Outcome,VA,House,01,D,VA-House-01
+341,1030,Will the Republican Party win the TN-05 House race?,Election Outcome,TN,House,05,R,TN-House-05
+340,1029,Will the Democratic Party win the TN-05 House race?,Election Outcome,TN,House,05,D,TN-House-05
+339,1028,Will the Republican Party win the MN-05 House race?,Election Outcome,MN,House,05,R,MN-House-05
+338,1027,Will the Democratic Party win the MN-05 House race?,Election Outcome,MN,House,05,D,MN-House-05
+337,1026,Will the Republican Party win the MN-02 House race?,Election Outcome,MN,House,02,R,MN-House-02
+336,1025,Will the Democratic Party win the MN-02 House race?,Election Outcome,MN,House,02,D,MN-House-02
+335,1024,Will the Republican Party win the MN-01 House race?,Election Outcome,MN,House,01,R,MN-House-01
+334,1023,Will the Democratic Party win the MN-01 House race?,Election Outcome,MN,House,01,D,MN-House-01
+333,1022,Will the Republican Party win the MI-10 House race?,Election Outcome,MI,House,10,R,MI-House-10
+332,1021,Will the Democratic Party win the MI-10 House race?,Election Outcome,MI,House,10,D,MI-House-10
+331,1020,Will the Republican Party win the MI-07 House race?,Election Outcome,MI,House,07,R,MI-House-07
+330,1019,Will the Democratic Party win the MI-07 House race?,Election Outcome,MI,House,07,D,MI-House-07
+329,1018,Will the Republican Party win the FL-22 House race?,Election Outcome,FL,House,22,R,FL-House-22
+328,1017,Will the Democratic Party win the FL-22 House race?,Election Outcome,FL,House,22,D,FL-House-22
+327,1016,Will the Republican Party win the FL-20 House race?,Election Outcome,FL,House,20,R,FL-House-20
+326,1015,Will the Democratic Party win the FL-20 House race?,Election Outcome,FL,House,20,D,FL-House-20
+325,1014,Will the Republican Party win the FL-16 House race?,Election Outcome,FL,House,16,R,FL-House-16
+324,1013,Will the Democratic Party win the FL-16 House race?,Election Outcome,FL,House,16,D,FL-House-16
+323,1012,Will the Democratic Party win the FL-13 House race?,Election Outcome,FL,House,13,D,FL-House-13
+322,1011,Will the Republican Party win the FL-09 House race?,Election Outcome,FL,House,09,R,FL-House-09
+321,1010,Will the Republican Party win the FL-07 House race?,Election Outcome,FL,House,07,R,FL-House-07
+320,1009,Will the Democratic Party win the FL-07 House race?,Election Outcome,FL,House,07,D,FL-House-07
+319,1008,Will the Republican Party win the AL-02 House race?,Election Outcome,AL,House,02,R,AL-House-02
+318,1007,Will the Democratic Party win the AL-02 House race?,Election Outcome,AL,House,02,D,AL-House-02
+317,1006,Will the Republican Party win the Wyoming Governor?,Election Outcome,WY,Governor,,R,WY-Governor
+316,1005,Will the Democratic Party win the Wyoming Governor?,Election Outcome,WY,Governor,,D,WY-Governor
+315,1004,Will the Republican Party win the Wisconsin Governor?,Election Outcome,WI,Governor,,R,WI-Governor
+314,1003,Will the Democratic Party win the Wisconsin Governor?,Election Outcome,WI,Governor,,D,WI-Governor
+313,1002,Will the Republican Party win the Vermont Governor?,Election Outcome,VT,Governor,,R,VT-Governor
+312,1001,Will the Democratic Party win the Vermont Governor?,Election Outcome,VT,Governor,,D,VT-Governor
+311,1000,Will the Republican Party win the Tennessee Governor?,Election Outcome,TN,Governor,,R,TN-Governor
+310,999,Will the Democratic Party win the Tennessee Governor?,Election Outcome,TN,Governor,,D,TN-Governor
+309,998,Will the Republican Party win the South Dakota Governor?,Election Outcome,SD,Governor,,R,SD-Governor
+308,997,Will the Republican Party win the Minnesota Governor?,Election Outcome,MN,Governor,,R,MN-Governor
+307,996,Will the Democratic Party win the Minnesota Governor?,Election Outcome,MN,Governor,,D,MN-Governor
+306,995,Will the Republican Party win the Michigan Governor?,Election Outcome,MI,Governor,,R,MI-Governor
+305,994,Will the Democratic Party win the Michigan Governor?,Election Outcome,MI,Governor,,D,MI-Governor
+304,993,Will the Republican Party win the Kansas Governor?,Election Outcome,KS,Governor,,R,KS-Governor
+303,992,Will the Democratic Party win the Kansas Governor?,Election Outcome,KS,Governor,,D,KS-Governor
+302,991,Will the Republican Party win the Hawaii Governor?,Election Outcome,HI,Governor,,R,HI-Governor
+301,990,Will the Democratic Party win the Hawaii Governor?,Election Outcome,HI,Governor,,D,HI-Governor
+300,989,Will the Republican Party win the Florida Governor?,Election Outcome,FL,Governor,,R,FL-Governor
+299,988,Will the Democratic Party win the Florida Governor?,Election Outcome,FL,Governor,,D,FL-Governor
+298,987,Will the Democratic Party win the Connecticut Governor?,Election Outcome,CT,Governor,,D,CT-Governor
+297,986,Will the Republican Party win the West Virginia Senate?,Election Outcome,WV,Senate,,R,WV-Senate
+296,985,Will the Democratic Party win the West Virginia Senate?,Election Outcome,WV,Senate,,D,WV-Senate
+295,984,Will the Democratic Party win the Virginia Senate?,Election Outcome,VA,Senate,,D,VA-Senate
+294,983,Will the Republican Party win the Texas Senate?,Election Outcome,TX,Senate,,R,TX-Senate
+293,982,Will the Democratic Party win the Texas Senate?,Election Outcome,TX,Senate,,D,TX-Senate
+292,981,Will the Republican Party win the South Dakota Senate?,Election Outcome,SD,Senate,,R,SD-Senate
+291,980,Will the Democratic Party win the South Dakota Senate?,Election Outcome,SD,Senate,,D,SD-Senate
+290,979,Will the Republican Party win the South Carolina Senate?,Election Outcome,SC,Senate,,R,SC-Senate
+289,978,Will the Democratic Party win the South Carolina Senate?,Election Outcome,SC,Senate,,D,SC-Senate
+288,977,Will the Republican Party win the Oregon Senate?,Election Outcome,OR,Senate,,R,OR-Senate
+287,976,Will the Democratic Party win the Oregon Senate?,Election Outcome,OR,Senate,,D,OR-Senate
+286,975,Will the Republican Party win the Oklahoma Senate?,Election Outcome,OK,Senate,,R,OK-Senate
+285,974,Will the Republican Party win the New Mexico Senate?,Election Outcome,NM,Senate,,R,NM-Senate
+284,973,Will the Democratic Party win the New Mexico Senate?,Election Outcome,NM,Senate,,D,NM-Senate
+283,972,Will the Republican Party win the New Jersey Senate?,Election Outcome,NJ,Senate,,R,NJ-Senate
+282,971,Will the Democratic Party win the New Jersey Senate?,Election Outcome,NJ,Senate,,D,NJ-Senate
+281,970,Will the Republican Party win the Nebraska Senate?,Election Outcome,NE,Senate,,R,NE-Senate
+280,969,Will the Independent Party win the Nebraska Senate?,Election Outcome,NE,Senate,,I,NE-Senate
+279,968,Will the Democratic Party win the Nebraska Senate?,Election Outcome,NE,Senate,,D,NE-Senate
+278,967,Will the Republican Party win the North Carolina Senate?,Election Outcome,NC,Senate,,R,NC-Senate
+277,966,Will the Democratic Party win the North Carolina Senate?,Election Outcome,NC,Senate,,D,NC-Senate
+276,965,Will the Independent Party win the Montana Senate?,Election Outcome,MT,Senate,,I,MT-Senate
+275,964,Will the Republican Party win the Montana Senate?,Election Outcome,MT,Senate,,R,MT-Senate
+274,963,Will the Democratic Party win the Montana Senate?,Election Outcome,MT,Senate,,D,MT-Senate
+273,962,Will the Republican Party win the Mississippi Senate?,Election Outcome,MS,Senate,,R,MS-Senate
+272,961,Will the Democratic Party win the Mississippi Senate?,Election Outcome,MS,Senate,,D,MS-Senate
+271,960,Will the Republican Party win the Maine Senate?,Election Outcome,ME,Senate,,R,ME-Senate
+270,959,Will the Democratic Party win the Maine Senate?,Election Outcome,ME,Senate,,D,ME-Senate
+269,958,Will the Republican Party win the Louisiana Senate?,Election Outcome,LA,Senate,,R,LA-Senate
+268,957,Will the Democratic Party win the Louisiana Senate?,Election Outcome,LA,Senate,,D,LA-Senate
+267,956,Will the Republican Party win the Kentucky Senate?,Election Outcome,KY,Senate,,R,KY-Senate
+266,955,Will the Democratic Party win the Kentucky Senate?,Election Outcome,KY,Senate,,D,KY-Senate
+265,954,Will the Republican Party win the Illinois Senate?,Election Outcome,IL,Senate,,R,IL-Senate
+264,953,Will the Democratic Party win the Illinois Senate?,Election Outcome,IL,Senate,,D,IL-Senate
+263,952,Will the Republican Party win the Idaho Senate?,Election Outcome,ID,Senate,,R,ID-Senate
+262,951,Will the Democratic Party win the Idaho Senate?,Election Outcome,ID,Senate,,D,ID-Senate
+261,950,Will the Republican Party win the Iowa Senate?,Election Outcome,IA,Senate,,R,IA-Senate
+260,949,Will the Democratic Party win the Iowa Senate?,Election Outcome,IA,Senate,,D,IA-Senate
+259,948,Will the Republican Party win the Georgia Senate?,Election Outcome,GA,Senate,,R,GA-Senate
+258,947,Will the Democratic Party win the Georgia Senate?,Election Outcome,GA,Senate,,D,GA-Senate
+257,946,Will the Republican Party win the Colorado Senate?,Election Outcome,CO,Senate,,R,CO-Senate
+256,945,Will the Democratic Party win the Colorado Senate?,Election Outcome,CO,Senate,,D,CO-Senate
+255,944,Will the Republican Party win the Arkansas Senate?,Election Outcome,AR,Senate,,R,AR-Senate
+254,943,Will the Democratic Party win the Arkansas Senate?,Election Outcome,AR,Senate,,D,AR-Senate
+253,942,Will the Republican Party win the Alabama Senate?,Election Outcome,AL,Senate,,R,AL-Senate
+252,941,Will the Democratic Party win the Alabama Senate?,Election Outcome,AL,Senate,,D,AL-Senate
+251,940,Will the Democratic Party win the VA-07 House race?,Election Outcome,VA,House,07,D,VA-House-07
+250,939,Will the Republican Party win the VA-02 House race?,Election Outcome,VA,House,02,R,VA-House-02
+249,938,Will the Republican Party win the VA-01 House race?,Election Outcome,VA,House,01,R,VA-House-01
+248,937,Will the Republican Party win the TX-28 House race?,Election Outcome,TX,House,28,R,TX-House-28
+247,936,Will the Democratic Party win the TX-28 House race?,Election Outcome,TX,House,28,D,TX-House-28
+246,935,Will the Republican Party win the TX-23 House race?,Election Outcome,TX,House,23,R,TX-House-23
+245,934,Will the Democratic Party win the TX-23 House race?,Election Outcome,TX,House,23,D,TX-House-23
+244,933,Will the Republican Party win the TX-15 House race?,Election Outcome,TX,House,15,R,TX-House-15
+243,932,Will the Democratic Party win the TX-15 House race?,Election Outcome,TX,House,15,D,TX-House-15
+242,931,Will the Republican Party win the SC-01 House race?,Election Outcome,SC,House,01,R,SC-House-01
+241,930,Will the Democratic Party win the SC-01 House race?,Election Outcome,SC,House,01,D,SC-House-01
+240,929,Will the Republican Party win the PA-10 House race?,Election Outcome,PA,House,10,R,PA-House-10
+239,928,Will the Democratic Party win the PA-10 House race?,Election Outcome,PA,House,10,D,PA-House-10
+238,927,Will the Republican Party win the PA-08 House race?,Election Outcome,PA,House,08,R,PA-House-08
+237,926,Will the Democratic Party win the PA-08 House race?,Election Outcome,PA,House,08,D,PA-House-08
+236,925,Will the Republican Party win the PA-07 House race?,Election Outcome,PA,House,07,R,PA-House-07
+235,924,Will the Democratic Party win the PA-07 House race?,Election Outcome,PA,House,07,D,PA-House-07
+234,923,Will the Republican Party win the PA-01 House race?,Election Outcome,PA,House,01,R,PA-House-01
+233,922,Will the Democratic Party win the PA-01 House race?,Election Outcome,PA,House,01,D,PA-House-01
+232,921,Will the Republican Party win the NY-17 House race?,Election Outcome,NY,House,17,R,NY-House-17
+231,920,Will the Democratic Party win the NY-17 House race?,Election Outcome,NY,House,17,D,NY-House-17
+230,919,Will the Republican Party win the NY-13 House race?,Election Outcome,NY,House,13,R,NY-House-13
+229,918,Will the Democratic Party win the NY-13 House race?,Election Outcome,NY,House,13,D,NY-House-13
+228,917,Will the Republican Party win the NJ-07 House race?,Election Outcome,NJ,House,07,R,NJ-House-07
+227,916,Will the Democratic Party win the NJ-07 House race?,Election Outcome,NJ,House,07,D,NJ-House-07
+226,915,Will the Republican Party win the NE-02 House race?,Election Outcome,NE,House,02,R,NE-House-02
+225,914,Will the Democratic Party win the NE-02 House race?,Election Outcome,NE,House,02,D,NE-House-02
+224,913,Will the Republican Party win the MT-01 House race?,Election Outcome,MT,House,01,R,MT-House-01
+223,912,Will the Democratic Party win the MT-01 House race?,Election Outcome,MT,House,01,D,MT-House-01
+222,911,Will the Republican Party win the ME-02 House race?,Election Outcome,ME,House,02,R,ME-House-02
+221,910,Will the Democratic Party win the ME-02 House race?,Election Outcome,ME,House,02,D,ME-House-02
+220,909,Will the Republican Party win the KY-04 House race?,Election Outcome,KY,House,04,R,KY-House-04
+219,908,Will the Democratic Party win the KY-04 House race?,Election Outcome,KY,House,04,D,KY-House-04
+218,907,Will the Republican Party win the IA-03 House race?,Election Outcome,IA,House,03,R,IA-House-03
+217,906,Will the Democratic Party win the IA-03 House race?,Election Outcome,IA,House,03,D,IA-House-03
+216,905,Will the Republican Party win the IA-02 House race?,Election Outcome,IA,House,02,R,IA-House-02
+215,904,Will the Democratic Party win the IA-02 House race?,Election Outcome,IA,House,02,D,IA-House-02
+214,903,Will the Republican Party win the IA-01 House race?,Election Outcome,IA,House,01,R,IA-House-01
+213,902,Will the Democratic Party win the IA-01 House race?,Election Outcome,IA,House,01,D,IA-House-01
+212,901,Will the Republican Party win the FL-13 House race?,Election Outcome,FL,House,13,R,FL-House-13
+211,900,Will the Democratic Party win the FL-09 House race?,Election Outcome,FL,House,09,D,FL-House-09
+210,899,Will the Republican Party win the CO-08 House race?,Election Outcome,CO,House,08,R,CO-House-08
+209,898,Will the Democratic Party win the CO-08 House race?,Election Outcome,CO,House,08,D,CO-House-08
+208,897,Will the Republican Party win the CO-04 House race?,Election Outcome,CO,House,04,R,CO-House-04
+207,896,Will the Democratic Party win the CO-04 House race?,Election Outcome,CO,House,04,D,CO-House-04
+206,895,Will the Republican Party win the CO-03 House race?,Election Outcome,CO,House,03,R,CO-House-03
+205,894,Will the Democratic Party win the CO-03 House race?,Election Outcome,CO,House,03,D,CO-House-03
+204,893,Will the Republican Party win the CA-48 House race?,Election Outcome,CA,House,48,R,CA-House-48
+203,892,Will the Democratic Party win the CA-48 House race?,Election Outcome,CA,House,48,D,CA-House-48
+202,891,Will the Republican Party win the CA-22 House race?,Election Outcome,CA,House,22,R,CA-House-22
+201,890,Will the Democratic Party win the CA-22 House race?,Election Outcome,CA,House,22,D,CA-House-22
+200,889,Will the Republican Party win the AZ-06 House race?,Election Outcome,AZ,House,06,R,AZ-House-06
+199,888,Will the Democratic Party win the AZ-06 House race?,Election Outcome,AZ,House,06,D,AZ-House-06
+198,887,Will the Republican Party win the AZ-01 House race?,Election Outcome,AZ,House,01,R,AZ-House-01
+197,886,Will the Democratic Party win the AZ-01 House race?,Election Outcome,AZ,House,01,D,AZ-House-01
+196,885,Will the Republican Party win the Texas Governor?,Election Outcome,TX,Governor,,R,TX-Governor
+195,884,Will the Democratic Party win the Texas Governor?,Election Outcome,TX,Governor,,D,TX-Governor
+194,883,Will the Democratic Party win the South Dakota Governor?,Election Outcome,SD,Governor,,D,SD-Governor
+193,882,Will the Republican Party win the South Carolina Governor?,Election Outcome,SC,Governor,,R,SC-Governor
+192,881,Will the Democratic Party win the South Carolina Governor?,Election Outcome,SC,Governor,,D,SC-Governor
+191,880,Will the Independent Party win the Rhode Island Governor?,Election Outcome,RI,Governor,,I,RI-Governor
+190,879,Will the Republican Party win the Pennsylvania Governor?,Election Outcome,PA,Governor,,R,PA-Governor
+189,878,Will the Democratic Party win the Pennsylvania Governor?,Election Outcome,PA,Governor,,D,PA-Governor
+188,877,Will the Republican Party win the Oregon Governor?,Election Outcome,OR,Governor,,R,OR-Governor
+187,876,Will the Democratic Party win the Oregon Governor?,Election Outcome,OR,Governor,,D,OR-Governor
+186,875,Will the Democratic Party win the Oklahoma Governor?,Election Outcome,OK,Governor,,D,OK-Governor
+185,874,Will the Republican Party win the New York Governor?,Election Outcome,NY,Governor,,R,NY-Governor
+184,873,Will the Democratic Party win the New York Governor?,Election Outcome,NY,Governor,,D,NY-Governor
+183,872,Will the Republican Party win the Nevada Governor?,Election Outcome,NV,Governor,,R,NV-Governor
+182,871,Will the Democratic Party win the Nevada Governor?,Election Outcome,NV,Governor,,D,NV-Governor
+181,870,Will the Republican Party win the New Mexico Governor?,Election Outcome,NM,Governor,,R,NM-Governor
+180,869,Will the Democratic Party win the New Mexico Governor?,Election Outcome,NM,Governor,,D,NM-Governor
+179,868,Will the Republican Party win the Nebraska Governor?,Election Outcome,NE,Governor,,R,NE-Governor
+178,867,Will the Democratic Party win the Nebraska Governor?,Election Outcome,NE,Governor,,D,NE-Governor
+177,866,Will the Republican Party win the Maine Governor?,Election Outcome,ME,Governor,,R,ME-Governor
+176,865,Will the Democratic Party win the Maine Governor?,Election Outcome,ME,Governor,,D,ME-Governor
+175,864,Will the Republican Party win the Maryland Governor?,Election Outcome,MD,Governor,,R,MD-Governor
+174,863,Will the Democratic Party win the Maryland Governor?,Election Outcome,MD,Governor,,D,MD-Governor
+173,862,Will the Republican Party win the Illinois Governor?,Election Outcome,IL,Governor,,R,IL-Governor
+172,861,Will the Democratic Party win the Illinois Governor?,Election Outcome,IL,Governor,,D,IL-Governor
+171,860,Will the Republican Party win the Idaho Governor?,Election Outcome,ID,Governor,,R,ID-Governor
+170,859,Will the Democratic Party win the Idaho Governor?,Election Outcome,ID,Governor,,D,ID-Governor
+169,858,Will the Republican Party win the Iowa Governor?,Election Outcome,IA,Governor,,R,IA-Governor
+168,857,Will the Democratic Party win the Iowa Governor?,Election Outcome,IA,Governor,,D,IA-Governor
+167,856,Will the Republican Party win the Georgia Governor?,Election Outcome,GA,Governor,,R,GA-Governor
+166,855,Will the Democratic Party win the Georgia Governor?,Election Outcome,GA,Governor,,D,GA-Governor
+165,854,Will the Republican Party win the Connecticut Governor?,Election Outcome,CT,Governor,,R,CT-Governor
+164,853,Will the Republican Party win the Colorado Governor?,Election Outcome,CO,Governor,,R,CO-Governor
+163,852,Will the Democratic Party win the Colorado Governor?,Election Outcome,CO,Governor,,D,CO-Governor
+162,851,Will the Republican Party win the California Governor?,Election Outcome,CA,Governor,,R,CA-Governor
+161,850,Will the Democratic Party win the California Governor?,Election Outcome,CA,Governor,,D,CA-Governor
+160,849,Will the Republican Party win the Arizona Governor?,Election Outcome,AZ,Governor,,R,AZ-Governor
+159,848,Will the Democratic Party win the Arizona Governor?,Election Outcome,AZ,Governor,,D,AZ-Governor
+158,847,Will the Republican Party win the Arkansas Governor?,Election Outcome,AR,Governor,,R,AR-Governor
+157,846,Will the Democratic Party win the Arkansas Governor?,Election Outcome,AR,Governor,,D,AR-Governor
+156,845,Will the Republican Party win the Alabama Governor?,Election Outcome,AL,Governor,,R,AL-Governor
+155,844,Will the Democratic Party win the Alabama Governor?,Election Outcome,AL,Governor,,D,AL-Governor
+154,843,Will the Republican Party win the U.S. Senate?,Freeform,US,Senate,,R,US-Senate
+153,842,Will the Democratic Party win the U.S. Senate?,Freeform,US,Senate,,D,US-Senate
+152,841,Will the Republican Party win the U.S. House?,Freeform,US,House,,R,US-House
+151,840,Will the Democratic Party win the U.S. House?,Freeform,US,House,,D,US-House
