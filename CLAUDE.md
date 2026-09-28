@@ -44,7 +44,7 @@ predcup/
   docs/                      PROJECT_BRIEF.md, PLAN.md, platform/, kalshi/, polymarket/
   config/
     settings.yaml            limits, thresholds, schedules (no secrets)
-    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence
+    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence, verified
   predcup/
     models.py                Market, OrderBook, Order, Fill, Position (pydantic)
     store.py                 SQLite persistence
@@ -77,7 +77,7 @@ predcup/
 
 ### Key logic
 
-- **Fair value:** liquidity-weighted average of Kalshi and Polymarket prices in log-odds space, adjusted for resolution differences from `market_map.csv`, optional manual override. Uncertainty widens with venue disagreement, thin books and stale data. No external match → no automatic trading.
+- **Fair value:** liquidity-weighted average of Kalshi and Polymarket prices in log-odds space, adjusted for resolution differences from `market_map.csv`, optional manual override. Uncertainty widens with venue disagreement, thin books and stale data. No external match → no automatic trading. A `market_map.csv` row with `verified=false` counts as no match — `fairvalue.py` must never trade off an unverified row, however high its `confidence`.
 - **Quoter:** reservation price = fair value − k × inventory; half-spread = max(min_edge, c × uncertainty). Re-quote when fair value moves > 1 point or outside prices move sharply; pull all quotes before scheduled events in config; stop if outside data is > 60 s stale.
 - **Risk (Phase 1 defaults, in config):** max 5% bankroll per market, max 60% total exposure, per-market max order size, price must be within X points of fair value, daily loss stop 8%, stale-data stop. Phase 2 loosens limits only via an explicit config change.
 - **Reconciliation:** compare local positions with `get_positions()` every minute; on mismatch → cancel all, halt, alert.

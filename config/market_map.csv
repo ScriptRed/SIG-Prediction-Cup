@@ -1,0 +1,238 @@
+platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,verified
+388,,34189052194715415717712638492295939369730261135279818111658380308037908103272,same,Kalshi series SENATEPARTYRI identified but has no markets populated yet,0.35,false
+387,,488419780624561349537087484870565521893053101280427867652103933922852715222,same,Kalshi series SENATEPARTYRI identified but has no markets populated yet,0.35,false
+386,,87168139162038142124325281596428703628651393008967709292675786182583009487326,same,no Kalshi party-level series identified for this race,0.35,false
+385,GOVPARTYRI-26-R,102532646565376609462398061495436415751549869365588135784659237547896983513156,same,,0.8,false
+384,GOVPARTYRI-26-D,12963869833838696349134591178892586509546549676681530057691780490969939726649,same,,0.8,false
+383,,6307834485558435215808626904255859755441792356631836236470061805834871616531,same,no Kalshi party-level series identified for this race,0.35,false
+382,,70746788989825809884465565578567236463704750444782169027788009807135230037639,same,no Kalshi party-level series identified for this race,0.35,false
+381,,63507724462133231104787876735572829496489051711286122158266079845394213067342,same,no Kalshi party-level series identified for this race,0.35,false
+380,,52178324110389695602675502049040070314896672216017803310891522866815977262616,same,Kalshi series SENATEPARTYMA identified but has no markets populated yet,0.35,false
+379,,43221719937764076433038032766035539743238562888772055254753209595632126672746,same,Kalshi series SENATEPARTYMA identified but has no markets populated yet,0.35,false
+378,,,,no Kalshi party-level series identified for this race; Polymarket event alaska-senate-election-margin-of-victory-first-round,0.0,false
+377,,,,no Kalshi party-level series identified for this race; Polymarket event alaska-senate-election-margin-of-victory-first-round,0.0,false
+376,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Hampshire 01 House 2026' returned no confident title match,0.0,false
+375,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Hampshire 01 House 2026' returned no confident title match,0.0,false
+374,GOVPARTYOK-26-R,12195532376431728872322429427491005809800415403259444414908025975252692275196,same,,0.8,false
+373,GOVPARTYNH-28-R,74721757099502856629978429446702729437619614092592091000501653336065671742582,same,,0.8,false
+372,GOVPARTYNH-28-D,50014042446564445111498439180144732017863294969428914194102372141019045896702,same,,0.8,false
+371,GOVPARTYMA-26-R,60883119277247470994582429550632811829505423471772740208057726618094988141160,same,,0.8,false
+370,GOVPARTYMA-26-D,86599393407315290835574565918707146460542680358932655202787183319230565551172,same,,0.8,false
+369,KXGOVPARTYAK-26-R,,same,Polymarket event alaska-governor-election-winner,0.45,false
+368,KXGOVPARTYAK-26-D,,same,Polymarket event alaska-governor-election-winner,0.45,false
+366,,80060936088366025258144304903076471910323249274330190845795758792258608520986,same,Kalshi series SENATEPARTYWY identified but has no markets populated yet,0.35,false
+365,,27404948209862839323844430001109403958819859044996868930478464247467785332053,same,Kalshi series SENATEPARTYWY identified but has no markets populated yet,0.35,false
+364,,102380752267570638620869131164535638205675589925529546317971847496035861484331,same,Kalshi series SENATEPARTYVA identified but has no markets populated yet,0.35,false
+363,,96929318213961284540286317104462937968294059852316583297126595891767297252339,same,Kalshi series SENATEPARTYTN identified but has no markets populated yet,0.35,false
+362,,32832180976319820233770784594777532825515834160906037910741389521155405934640,same,Kalshi series SENATEPARTYTN identified but has no markets populated yet,0.35,false
+361,,94144666696080257320875321773929351799444961707541341062900970628705137265205,same,Kalshi series SENATEPARTYMN identified but has no markets populated yet,0.35,false
+360,,48818313016350396669748685076872055722193706704707501697175341199391879767921,same,Kalshi series SENATEPARTYMN identified but has no markets populated yet,0.35,false
+359,,86195514384851409619905031828040583814997063744044234269815468933123074129946,same,Kalshi series SENATEPARTY-MI identified but has no markets populated yet,0.35,false
+358,,78995588923102427048722840184221076815112013093156533999185840362271594836494,same,Kalshi series SENATEPARTY-MI identified but has no markets populated yet,0.35,false
+357,,2775855766473723987708877490863815114596846378950095876075735517458060155548,same,no Kalshi party-level series identified for this race,0.35,false
+356,,112865931018535043924604877802427749327024008755764693656162236690266569063025,same,no Kalshi party-level series identified for this race,0.35,false
+355,,96255961466430927996318129212919625032633852580127611416492268354634068382291,same,Kalshi series SENATEPARTY-FL identified but has no markets populated yet,0.35,false
+354,,90542063534211195117805498749862682740907741073883285554993204478120111187243,same,Kalshi series SENATEPARTY-FL identified but has no markets populated yet,0.35,false
+353,,12498300569608521064894052980595735860966040427271467777010581510310030273291,same,no Kalshi party-level series identified for this race,0.35,false
+352,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 03 House 2026' returned no confident title match,0.0,false
+351,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 03 House 2026' returned no confident title match,0.0,false
+350,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 01 House 2026' returned no confident title match,0.0,false
+349,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 01 House 2026' returned no confident title match,0.0,false
+348,,,,no Kalshi party-level series identified for this race; Polymarket search 'Washington 03 House 2026' returned no confident title match,0.0,false
+347,,,,no Kalshi party-level series identified for this race; Polymarket search 'Washington 03 House 2026' returned no confident title match,0.0,false
+346,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 07 House 2026' returned no confident title match,0.0,false
+345,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 05 House 2026' returned no confident title match,0.0,false
+344,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 05 House 2026' returned no confident title match,0.0,false
+343,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 02 House 2026' returned no confident title match,0.0,false
+342,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 01 House 2026' returned no confident title match,0.0,false
+341,,,,no Kalshi party-level series identified for this race; Polymarket search 'Tennessee 05 House 2026' returned no confident title match,0.0,false
+340,,,,no Kalshi party-level series identified for this race; Polymarket search 'Tennessee 05 House 2026' returned no confident title match,0.0,false
+339,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 05 House 2026' returned no confident title match,0.0,false
+338,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 05 House 2026' returned no confident title match,0.0,false
+337,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 02 House 2026' returned no confident title match,0.0,false
+336,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 02 House 2026' returned no confident title match,0.0,false
+335,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 01 House 2026' returned no confident title match,0.0,false
+334,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 01 House 2026' returned no confident title match,0.0,false
+333,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-michigan,0.0,false
+332,,67982187293376836536451130152252511056456663224321788143931560486404777854841,same,no Kalshi party-level series identified for this race,0.35,false
+331,,,,no Kalshi party-level series identified for this race; Polymarket search 'Michigan 07 House 2026' returned no confident title match,0.0,false
+330,,,,no Kalshi party-level series identified for this race; Polymarket search 'Michigan 07 House 2026' returned no confident title match,0.0,false
+329,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 22 House 2026' returned no confident title match,0.0,false
+328,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 22 House 2026' returned no confident title match,0.0,false
+327,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 20 House 2026' returned no confident title match,0.0,false
+326,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 20 House 2026' returned no confident title match,0.0,false
+325,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 16 House 2026' returned no confident title match,0.0,false
+324,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 16 House 2026' returned no confident title match,0.0,false
+323,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 13 House 2026' returned no confident title match,0.0,false
+322,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 09 House 2026' returned no confident title match,0.0,false
+321,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 07 House 2026' returned no confident title match,0.0,false
+320,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 07 House 2026' returned no confident title match,0.0,false
+319,,,,no Kalshi party-level series identified for this race; Polymarket search 'Alabama 02 House 2026' returned no confident title match,0.0,false
+318,,,,no Kalshi party-level series identified for this race; Polymarket search 'Alabama 02 House 2026' returned no confident title match,0.0,false
+317,GOVPARTYWY-26-R,110662231382210721528347530139180000273032668591469451320298639508988983810813,same,,0.8,false
+316,GOVPARTYWY-26-D,27698880682601961151205903485139737259763277359865731443999905606295817799595,same,,0.8,false
+315,GOVPARTYWI-26-R,110568426700454908727813010666782278712329569099119457880819387703511785225289,same,,0.8,false
+314,GOVPARTYWI-26-D,47540146623620182724372695903724852067595146419459482790641441152489267651664,same,,0.8,false
+313,GOVPARTYVT-28-R,65605367058878559301637243726634950490412574104227831338798013303495243850873,same,,0.8,false
+312,GOVPARTYVT-28-D,72114266463379433906187959416306959572546325827181022723106443232608510560756,same,,0.8,false
+311,GOVPARTYTN-26-R,24326213014906491852819643583064878883456155870415421965354259617491710449915,same,,0.8,false
+310,GOVPARTYTN-26-D,42092635016892213098098431597314233695276464574605657188222427223673881775927,same,,0.8,false
+309,GOVPARTYSD-26-R,33837211479232375079024923304907620849682048653904904303440832993092201214603,same,,0.8,false
+308,GOVPARTYMN-26-R,52147423614804649302719056405435366546705837330765266472799012257146403501281,same,,0.8,false
+307,GOVPARTYMN-26-D,9126148503694470083148381233969293708563386203943196700151133094426622508276,same,,0.8,false
+306,GOVPARTYMI-26-R,3091929947863726371877226324959784580013579280794631063604653957812689085396,same,,0.8,false
+305,GOVPARTYMI-26-D,63517706574758177502492185078056756527324898714284142778693046697324148388357,same,,0.8,false
+304,GOVPARTYKS-27-R,63693837389044553718411703128182914158332390182546987000527783026710645197027,same,,0.8,false
+303,GOVPARTYKS-27-D,79484096963248498578517243733071571984223432387663163312687533493173144145268,same,,0.8,false
+302,GOVPARTYHI-26-R,6206829575409742132406519993328718521258147411060807019224318077365646262406,same,,0.8,false
+301,GOVPARTYHI-26-D,110136962687751258520353298894226275160632723246908859759371791290370868364654,same,,0.8,false
+300,GOVPARTYFL-26-R,107409796822153809778143872196236532785178617102787858261374110829112218839748,same,,0.8,false
+299,GOVPARTYFL-26-D,45666577334498374671436529469006420565255125221309505855441517627481607414492,same,,0.8,false
+298,GOVPARTYCT-26-D,94716743709853585469973889676994451123824166409123282527490222914006156870020,same,,0.8,false
+297,,29846961179855614140835363966990157783478597940276279214088983837090479162375,same,no Kalshi party-level series identified for this race,0.35,false
+296,,52028228058567050490082336528222808703081642301982405857835418872316431269613,same,no Kalshi party-level series identified for this race,0.35,false
+295,,14293665860978595537579833125649154345910523679283393880767187920364090023903,same,Kalshi series SENATEPARTYVA identified but has no markets populated yet,0.35,false
+294,,67705074388177698785792560803809928179669581261522555105590516726794073778500,same,Kalshi series SENATEPARTY-TX identified but has no markets populated yet,0.35,false
+293,,107545268054037477232449143519427272925097248973632755711208753797987766276875,same,Kalshi series SENATEPARTY-TX identified but has no markets populated yet,0.35,false
+292,,99875861300687458024134185930299538942385507938665929465399879102992446999241,same,no Kalshi party-level series identified for this race,0.35,false
+291,,86389115052067666308833614697375937520184991957339549436311535523133704658550,same,no Kalshi party-level series identified for this race,0.35,false
+290,,19415336508585369284423077332089322941952840359042766945370653639026871631329,same,no Kalshi party-level series identified for this race,0.35,false
+289,,36878701294622385303754057696699259232286823129835461549488433242784556609070,same,no Kalshi party-level series identified for this race,0.35,false
+288,,29372963211605123864010779732442332283182456440166524936806508786518484983784,same,no Kalshi party-level series identified for this race,0.35,false
+287,,39061967893309111436785551971694628277240985905229982728692930838050590183253,same,no Kalshi party-level series identified for this race,0.35,false
+286,,87984610986203835181744307494384775853082934048738616809370802137328720672555,same,no Kalshi party-level series identified for this race,0.35,false
+285,,50833927425013742586235369308251713607825467476817159455590873772826316462616,same,Kalshi series SENATEPARTYNM identified but has no markets populated yet,0.35,false
+284,,19382258711208071791808114067884394683151059595826582226310657669291779774276,same,Kalshi series SENATEPARTYNM identified but has no markets populated yet,0.35,false
+283,,40998204559234038191997907383655191921411495956000686691445327807225972314049,same,Kalshi series SENATEPARTYNJ identified but has no markets populated yet,0.35,false
+282,,7677974549798441961236580116388288696687878955556487654297603529125375275637,same,Kalshi series SENATEPARTYNJ identified but has no markets populated yet,0.35,false
+281,,61406058438415950779483989122479310768072285644599546311211866758610927324521,same,Kalshi series SENATEPARTY-NE identified but has no markets populated yet,0.35,false
+280,,92675179933366654867447126671423837717627190502182140795999849947284842288159,same,Kalshi series SENATEPARTY-NE identified but has no markets populated yet,0.35,false
+279,,10409969596153736009451774783703202392762720997121029504006714556341636000261,same,Kalshi series SENATEPARTY-NE identified but has no markets populated yet,0.35,false
+278,,106237810640779958452537049870874029698681980824806800515963887199272562837477,same,no Kalshi party-level series identified for this race,0.35,false
+277,,75745094375524270446035684599498879432519268470274158187530806950572645638766,same,no Kalshi party-level series identified for this race,0.35,false
+276,,84340654818268227201270829515662545564535742753659833045084871652496884277807,same,Kalshi series SENATEPARTY-MT identified but has no markets populated yet,0.35,false
+275,,79590444989411093210940939240176486273588607691124169847899704137059978297379,same,Kalshi series SENATEPARTY-MT identified but has no markets populated yet,0.35,false
+274,,5347927708564596277152237992853544331067082389396950570366105113556124265958,same,Kalshi series SENATEPARTY-MT identified but has no markets populated yet,0.35,false
+273,,43738477141101590215056217056969608374756779563696645526349857390566870147364,same,Kalshi series SENATEPARTYMS identified but has no markets populated yet,0.35,false
+272,,68480239794038361406143076899055856619190312116315511680595576676848260383579,same,Kalshi series SENATEPARTYMS identified but has no markets populated yet,0.35,false
+271,,76508947086962160438405935200125199985011670245759039919125612129807421163383,same,Kalshi series SENATEPARTYME identified but has no markets populated yet,0.35,false
+270,,48575655245476347821154118117401480190008709979587511848606007824155974986339,same,Kalshi series SENATEPARTYME identified but has no markets populated yet,0.35,false
+269,,60046643913696078978258770638664660599769974920748975021262601907475665017825,same,no Kalshi party-level series identified for this race,0.35,false
+268,,113137624964926268585589785670631416507830550735458719802369252044201032949357,same,no Kalshi party-level series identified for this race,0.35,false
+267,,12598022503116809195563033037692293444668666368663835684502228496125609568149,same,no Kalshi party-level series identified for this race,0.35,false
+266,,92135384965904991509310221180450749977918144194214948401037138387071762157764,same,no Kalshi party-level series identified for this race,0.35,false
+265,,56765588204201084977296214813794816397795777146174349891684399699640242192062,same,no Kalshi party-level series identified for this race,0.35,false
+264,,111232940125638440445053485973783855640462352939983239237000414365099205583774,same,no Kalshi party-level series identified for this race,0.35,false
+263,,65314805253774944680915550790237892242718931033782892229319718700515564096413,same,no Kalshi party-level series identified for this race,0.35,false
+262,,26969987183147691459735958550527481658991321979903347263530424157323143990437,same,no Kalshi party-level series identified for this race,0.35,false
+261,,66644441732380993264451138936610737214865095373245516415789528831055541050905,same,no Kalshi party-level series identified for this race,0.35,false
+260,,8048351788752330183322061643810141972057338023610076786014800830710597129383,same,no Kalshi party-level series identified for this race,0.35,false
+259,,80736122680740812449013332323553886266605781820477134889276974979087127011710,same,no Kalshi party-level series identified for this race,0.35,false
+258,,83773235148053951450619016789202944243863779932529937041963572165331009667720,same,no Kalshi party-level series identified for this race,0.35,false
+257,,107167253247959681278635375532372161757968896031306223139791203775393777541826,same,no Kalshi party-level series identified for this race,0.35,false
+256,,42054745971068585992552468258190420739050887060024171675730958443343389309662,same,no Kalshi party-level series identified for this race,0.35,false
+255,,78854178952124918741549812936343463417915677808825194681039697503851023231561,same,no Kalshi party-level series identified for this race,0.35,false
+254,,72886985091553225261880008335633731330398834377716296897321179753246165638738,same,no Kalshi party-level series identified for this race,0.35,false
+253,,98167473855206386421177835312752579070697429313088163059089397490523503912323,same,no Kalshi party-level series identified for this race,0.35,false
+252,,112631815696760308015879207569232436560894777106252894238120648921534834095752,same,no Kalshi party-level series identified for this race,0.35,false
+251,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 07 House 2026' returned no confident title match,0.0,false
+250,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 02 House 2026' returned no confident title match,0.0,false
+249,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 01 House 2026' returned no confident title match,0.0,false
+248,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 28 House 2026' returned no confident title match,0.0,false
+247,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 28 House 2026' returned no confident title match,0.0,false
+246,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 23 House 2026' returned no confident title match,0.0,false
+245,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 23 House 2026' returned no confident title match,0.0,false
+244,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 15 House 2026' returned no confident title match,0.0,false
+243,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 15 House 2026' returned no confident title match,0.0,false
+242,,,,no Kalshi party-level series identified for this race; Polymarket search 'South Carolina 01 House 2026' returned no confident title match,0.0,false
+241,,,,no Kalshi party-level series identified for this race; Polymarket search 'South Carolina 01 House 2026' returned no confident title match,0.0,false
+240,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-pennsylvania,0.0,false
+239,,99792638463439997030947266719544781707346337681332855088686067934064660371880,same,no Kalshi party-level series identified for this race,0.35,false
+238,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 08 House 2026' returned no confident title match,0.0,false
+237,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 08 House 2026' returned no confident title match,0.0,false
+236,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 07 House 2026' returned no confident title match,0.0,false
+235,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 07 House 2026' returned no confident title match,0.0,false
+234,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 01 House 2026' returned no confident title match,0.0,false
+233,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 01 House 2026' returned no confident title match,0.0,false
+232,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-new-york,0.0,false
+231,,95330555834005427520846426202905547771195003113204988843153997638396628348995,same,no Kalshi party-level series identified for this race,0.35,false
+230,,,,no Kalshi party-level series identified for this race; Polymarket search 'New York 13 House 2026' returned no confident title match,0.0,false
+229,,,,no Kalshi party-level series identified for this race; Polymarket search 'New York 13 House 2026' returned no confident title match,0.0,false
+228,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Jersey 07 House 2026' returned no confident title match,0.0,false
+227,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Jersey 07 House 2026' returned no confident title match,0.0,false
+226,,,,no Kalshi party-level series identified for this race; Polymarket search 'Nebraska 02 House 2026' returned no confident title match,0.0,false
+225,,,,no Kalshi party-level series identified for this race; Polymarket search 'Nebraska 02 House 2026' returned no confident title match,0.0,false
+224,,,,no Kalshi party-level series identified for this race; Polymarket search 'Montana 01 House 2026' returned no confident title match,0.0,false
+223,,,,no Kalshi party-level series identified for this race; Polymarket search 'Montana 01 House 2026' returned no confident title match,0.0,false
+222,,,,no Kalshi party-level series identified for this race; Polymarket search 'Maine 02 House 2026' returned no confident title match,0.0,false
+221,,,,no Kalshi party-level series identified for this race; Polymarket search 'Maine 02 House 2026' returned no confident title match,0.0,false
+220,,,,no Kalshi party-level series identified for this race; Polymarket search 'Kentucky 04 House 2026' returned no confident title match,0.0,false
+219,,,,no Kalshi party-level series identified for this race; Polymarket search 'Kentucky 04 House 2026' returned no confident title match,0.0,false
+218,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 03 House 2026' returned no confident title match,0.0,false
+217,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 03 House 2026' returned no confident title match,0.0,false
+216,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 02 House 2026' returned no confident title match,0.0,false
+215,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 02 House 2026' returned no confident title match,0.0,false
+214,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 01 House 2026' returned no confident title match,0.0,false
+213,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 01 House 2026' returned no confident title match,0.0,false
+212,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 13 House 2026' returned no confident title match,0.0,false
+211,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 09 House 2026' returned no confident title match,0.0,false
+210,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 08 House 2026' returned no confident title match,0.0,false
+209,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 08 House 2026' returned no confident title match,0.0,false
+208,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 04 House 2026' returned no confident title match,0.0,false
+207,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 04 House 2026' returned no confident title match,0.0,false
+206,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 03 House 2026' returned no confident title match,0.0,false
+205,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 03 House 2026' returned no confident title match,0.0,false
+204,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-california,0.0,false
+203,,44058424764964714248558165603691845222162264208032151886857602264638090490908,same,no Kalshi party-level series identified for this race,0.35,false
+202,,,,no Kalshi party-level series identified for this race; Polymarket search 'California 22 House 2026' returned no confident title match,0.0,false
+201,,,,no Kalshi party-level series identified for this race; Polymarket search 'California 22 House 2026' returned no confident title match,0.0,false
+200,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 06 House 2026' returned no confident title match,0.0,false
+199,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 06 House 2026' returned no confident title match,0.0,false
+198,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 01 House 2026' returned no confident title match,0.0,false
+197,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 01 House 2026' returned no confident title match,0.0,false
+196,GOVPARTYTX-26-R,38601260482570384968710837880306414330361708836762827643277699212874441917745,same,,0.8,false
+195,GOVPARTYTX-26-D,94288714604163574102049252490824493204211229391717289463753112166641141429805,same,,0.8,false
+194,GOVPARTYSD-26-D,19857809653204352084235953967001149759321806996646353766198011041287290557051,same,,0.8,false
+193,GOVPARTYSC-26-R,115258259561547414610995893322363332894307320697384633557391293684664191320185,same,,0.8,false
+192,GOVPARTYSC-26-D,69673263487139231624315897585768201230841320475352635832819992690850228911127,same,,0.8,false
+191,,13165388174900569619328636459480727052834519645059869980549561071064022087971,same,Kalshi series GOVPARTYRI,0.35,false
+190,GOVPARTYPA-26-R,5688801435889428424829669547673250506620304454224290559333533905846390372394,same,,0.8,false
+189,GOVPARTYPA-26-D,86158564038726526008163887440654010269502827272776903587995739265573029112945,same,,0.8,false
+188,GOVPARTYOR-26-R,60638893393471159707288518099941698438888451383700859041754575565737488871199,same,,0.8,false
+187,GOVPARTYOR-26-D,9755787435930070640870536823763281543938387827225853124824813626465365556107,same,,0.8,false
+186,GOVPARTYOK-26-D,37700214927702560862325287464231700075479667077774217635210792305464305010407,same,,0.8,false
+185,GOVPARTYNY-26-R,,same,Polymarket event new-york-governor-election-nassau-county-winner,0.45,false
+184,GOVPARTYNY-26-D,,same,Polymarket event new-york-governor-election-nassau-county-winner,0.45,false
+183,GOVPARTYNV-26-R,36534533573603875737529658378786753655446938295215562076681496438632129950514,same,,0.8,false
+182,GOVPARTYNV-26-D,44694192324739996801085001666176025418617008106673832257198165276523684865671,same,,0.8,false
+181,GOVPARTYNM-26-R,66486026915087812107390926299428531209332603871609345502520740675575639289776,same,,0.8,false
+180,GOVPARTYNM-26-D,17781069937970314001472355582427331102577624490515546410398313363226785264562,same,,0.8,false
+179,GOVPARTYNE-26-R,73030731922944118546035998309915164095890033874433358499266850532352206183824,same,,0.8,false
+178,GOVPARTYNE-26-D,3466069051818884243073756614952529401222377791973010490050674378116587529746,same,,0.8,false
+177,GOVPARTYME-26-R,77900872247159891045693614974240851672235710405168744753050508553885061962390,same,,0.8,false
+176,GOVPARTYME-26-D,92845243966002494782242842696395378111295494684532387488276103452077216171518,same,,0.8,false
+175,GOVPARTYMD-26-R,99454680080858182975916786322594927636228275589135289499749895045005789315019,same,,0.8,false
+174,GOVPARTYMD-26-D,21509039698927424303190259436702262868147960450053769072201076877922760800234,same,,0.8,false
+173,GOVPARTYIL-26-R,84456939894380206199554748929444222951802944556070526261308395410636849018567,same,,0.8,false
+172,GOVPARTYIL-26-D,23435178151774440115423538812688705649247609803850018642847000556068202005554,same,,0.8,false
+171,GOVPARTYID-26-R,87236158376775117473663657833358313384905412589236150240764095508530872387075,same,,0.8,false
+170,GOVPARTYID-26-D,33422454484664318134839474897555797731651253833609657227452504228201243908837,same,,0.8,false
+169,GOVPARTYIA-26-R,35744753605838865227961720864928711626409257515092566128191701940968999011763,same,,0.8,false
+168,GOVPARTYIA-26-D,45621938709469399887344165091123819127263258871102896783851049824656362940868,same,,0.8,false
+167,GOVPARTYGA-26-R,97156142625997509825047113797885384709699448119366610735530801446868735350645,same,,0.8,false
+166,GOVPARTYGA-26-D,96459370811670786126734211788927519220910942757255465176009600889740363230698,same,,0.8,false
+165,GOVPARTYCT-26-R,28222949582692352334110457056784683609708218641745397767642367585928375878193,same,,0.8,false
+164,GOVPARTYCO-26-R,17546916569546560082654809047780534438941220653259855302022567325162996913878,same,,0.8,false
+163,GOVPARTYCO-26-D,13561110222018578357785114619723468880952494576477687978085608584743809891728,same,,0.8,false
+162,GOVPARTYCA-26-R,,same,Polymarket search 'California Governor 2026' returned no confident title match,0.45,false
+161,GOVPARTYCA-26-D,,same,Polymarket search 'California Governor 2026' returned no confident title match,0.45,false
+160,GOVPARTYAZ-26-R,18859933834391393264997730047904836599784455493762567366530805521273388590339,same,,0.8,false
+159,GOVPARTYAZ-26-D,48368039124533504674394545622809320495392482760644292167644042386014017726777,same,,0.8,false
+158,GOVPARTYAR-26-R,102338577209265315381870206199608266895858545057511455426333199851251620807909,same,,0.8,false
+157,GOVPARTYAR-26-D,40899822988489523883534886021948522261134770684960257613447444387617827489093,same,,0.8,false
+156,GOVPARTYAL-26-R,109054998942213692077271472955675949350077711784792442998941210738471587356514,same,,0.8,false
+155,GOVPARTYAL-26-D,66799540193763442273153807390120946960260027428359861674134091731050086258652,same,,0.8,false
+154,CONTROLS-2026-R,51939490109676186832507970701169130490548061087912630009168726706475001411420,same,,0.8,false
+153,CONTROLS-2026-D,113287701564209339913693347405685749986285999146352375265161592243948562084773,same,,0.8,false
+152,CONTROLH-2026-R,65139230827417363158752884968303867495725894165574887635816574090175320800482,same,,0.8,false
+151,CONTROLH-2026-D,83247781037352156539108067944461291821683755894607244160607042790356561625563,same,,0.8,false
