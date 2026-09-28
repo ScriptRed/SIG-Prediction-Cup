@@ -141,6 +141,7 @@ class RiskManager:
         self._sleep = sleep
         self._daily_realized_pnl = 0.0
         self._orders: dict[str, Order] = {}
+        self._halted_markets: set[str] = set()
 
     def update_bankroll(self, bankroll: float) -> None:
         self._bankroll = bankroll
@@ -160,6 +161,34 @@ class RiskManager:
 
     def _tracked_orders(self) -> list[Order]:
         return list(self._orders.values())
+
+    def is_market_halted(self, market_id: str) -> bool:
+        return market_id in self._halted_markets
+
+    def record_order_rejection(
+        self, market_id: str, status_code: int, error_code: str, message: str
+    ) -> None:
+        """Any unexpected 4xx on an order (possible undocumented position
+        limit) stops quoting in that market and alerts — never retried.
+        CLAUDE.md's retry rules mean 429 and 409 REQUEST_IN_FLIGHT are
+        already retried transparently at the venue-adapter layer and never
+        reach here, so any call to this method is terminal by the time it
+        arrives: purely a halt-and-alert step, no retry attempted.
+        """
+        self._halted_markets.add(market_id)
+        self._event_store.log(
+            "market_halted",
+            {
+                "market_id": market_id,
+                "status_code": status_code,
+                "error_code": error_code,
+                "message": message,
+            },
+        )
+        self._alerter.send(
+            f"Market {market_id} halted: unexpected {status_code} {error_code} "
+            f"on order placement ({message}). No retry attempted."
+        )
 
     def check(self, order: Order, *, fair_value: float | None, outside_data_age_seconds: float) -> RiskDecision:
         decision = self._evaluate(order, fair_value=fair_value, outside_data_age_seconds=outside_data_age_seconds)
@@ -181,6 +210,9 @@ class RiskManager:
         self, order: Order, *, fair_value: float | None, outside_data_age_seconds: float
     ) -> RiskDecision:
         limits = self._limits
+
+        if order.market_id is not None and self.is_market_halted(order.market_id):
+            return RiskDecision(False, "market halted after an unexpected order rejection")
 
         if outside_data_age_seconds > limits.stale_data_stop_seconds:
             return RiskDecision(False, "stale outside data")
