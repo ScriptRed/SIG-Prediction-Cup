@@ -45,7 +45,8 @@ class Order(BaseModel):
     exchange_id: str
     market_id: str | None = None
     tournament_id: str
-    party_id: str | None = None  # real-world party/candidate this exposure backs
+    party_id: str | None = None  # this market's own party: "R" / "D" / "I" (predcup.cup_markets)
+    race_key: str | None = None  # groups the R/D/I markets of one race (predcup.cup_markets.race_key)
     side: Side
     action: Action
     quantity: int

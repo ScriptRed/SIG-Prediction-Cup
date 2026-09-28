@@ -119,6 +119,18 @@ def test_order_default_status_is_pending():
     assert order.status == OrderStatus.PENDING
 
 
+def test_order_party_id_and_race_key_default_to_none():
+    order = make_order()
+    assert order.party_id is None
+    assert order.race_key is None
+
+
+def test_order_party_id_and_race_key_accepted():
+    order = make_order(party_id="R", race_key="MI-Senate")
+    assert order.party_id == "R"
+    assert order.race_key == "MI-Senate"
+
+
 def test_is_on_tick_helper():
     assert is_on_tick(0.005)
     assert is_on_tick(0.995)

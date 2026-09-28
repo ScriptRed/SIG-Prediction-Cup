@@ -101,8 +101,47 @@ def _market_notional(orders: list[Order], market_id: str | None) -> float:
     return _total_notional([o for o in orders if o.market_id == market_id])
 
 
-def _party_notional(orders: list[Order], party_id: str | None) -> float:
-    return _total_notional([o for o in orders if o.party_id == party_id])
+def _is_long(side: str, action: str) -> bool:
+    """True if this side/action combination benefits from *this market's
+    own* YES-normalized price rising — i.e. is "long" this market's own
+    outcome (its own party, for an election market)."""
+    return (side == "yes" and action == "buy") or (side == "no" and action == "sell")
+
+
+# Independent-party markets are deliberately excluded from the R-vs-D axis
+# below. Betting against the Republican in a two-party race is, to a good
+# approximation, the same as betting on the Democrat (and vice versa) — the
+# whole point of this limit is to catch that correlated "red wave" /
+# "blue wave" exposure. But betting against the Republican in a race that
+# *also* has a serious Independent doesn't reliably say anything about the
+# Democrat specifically: the shifted probability mass could go to the
+# independent instead. Folding Independent exposure into either major
+# party's bucket would misrepresent that race's risk, so it gets its own
+# lane instead — subject only to the per-market and total-exposure caps,
+# not this one. Revisit if a session's exposure to independents grows
+# large enough that idiosyncratic risk there stops being a rounding error.
+_RD_PARTIES = ("R", "D")
+
+
+def net_rd_exposure(orders: list[Order]) -> float:
+    """Net directional exposure on the national R-vs-D axis: positive =
+    net long Republican (short Democrat) across every race, negative = net
+    long Democrat. Only orders with party_id in {"R", "D"} participate.
+
+    The sum is race-agnostic — R-YES and D-NO in the *same* race both add
+    the same direction (that's the motivating case), but so do R-YES in
+    one race and D-NO in a completely different one, because this limit
+    exists to cap national correlated exposure, not a single race's
+    pairing. Grouping by race_key isn't needed for the arithmetic, only
+    for callers reasoning about *why* two orders combine.
+    """
+    net = 0.0
+    for o in orders:
+        if not is_exposure_counted(o.status) or o.party_id not in _RD_PARTIES:
+            continue
+        signed = _order_notional(o) * (1 if _is_long(o.side, o.action) else -1)
+        net += signed if o.party_id == "R" else -signed
+    return net
 
 
 def compute_markout(fill: Fill, later_price: float) -> float:
@@ -111,10 +150,7 @@ def compute_markout(fill: Fill, later_price: float) -> float:
     convention that all internal prices are ("Convert at the venue boundary
     only") — so later_price (also YES-normalized) is directly comparable.
     """
-    benefits_from_price_increase = (fill.side == "yes" and fill.action == "buy") or (
-        fill.side == "no" and fill.action == "sell"
-    )
-    if benefits_from_price_increase:
+    if _is_long(fill.side, fill.action):
         return later_price - fill.price
     return fill.price - later_price
 
@@ -199,6 +235,7 @@ class RiskManager:
                     "market_id": order.market_id,
                     "exchange_id": order.exchange_id,
                     "party_id": order.party_id,
+                    "race_key": order.race_key,
                     "quantity": order.quantity,
                     "price": order.price,
                     "reason": decision.reason,
@@ -235,10 +272,14 @@ class RiskManager:
         if _market_notional(tracked, order.market_id) + order_notional > market_cap:
             return RiskDecision(False, "exceeds per-market bankroll cap")
 
-        if order.party_id is not None:
+        if order.party_id in _RD_PARTIES:
             party_cap = limits.max_party_exposure_fraction * self._bankroll
-            if _party_notional(tracked, order.party_id) + order_notional > party_cap:
-                return RiskDecision(False, "exceeds net party-exposure cap")
+            order_signed = order_notional * (1 if _is_long(order.side, order.action) else -1)
+            new_net = net_rd_exposure(tracked) + (
+                order_signed if order.party_id == "R" else -order_signed
+            )
+            if abs(new_net) > party_cap:
+                return RiskDecision(False, "exceeds net R-vs-D party-exposure cap")
 
         total_cap = limits.max_total_exposure_fraction * self._bankroll
         if _total_notional(tracked) + order_notional > total_cap:
