@@ -1,0 +1,104 @@
+"""In-memory fake implementing predcup.venues.base.Venue, for offline tests.
+
+Every strategy must run against this before going live (CLAUDE.md). It
+models the SIG platform's tournament isolation (separate order books and
+balances per tournament_id) but is deliberately simple: no price-time
+matching engine, no FIFO lot tracking — orders rest until explicitly
+cancelled or filled via `simulate_fill`.
+"""
+
+from __future__ import annotations
+
+import itertools
+from datetime import datetime, timezone
+
+from predcup.models import Market, Order, OrderBook, OrderStatus, Position
+from predcup.venues.base import CancelAllResult, Venue
+
+
+class MockExchange(Venue):
+    def __init__(
+        self,
+        markets: list[Market] | None = None,
+        books: dict[str, OrderBook] | None = None,
+        starting_balance: float = 100_000.0,
+    ) -> None:
+        self._markets = markets or []
+        self._books = books or {}
+        self._starting_balance = starting_balance
+        self._order_id_counter = itertools.count(1)
+        # tournament_id -> order_id -> Order
+        self._open_orders: dict[str, dict[str, Order]] = {}
+        # tournament_id -> exchange_id -> Position
+        self._positions: dict[str, dict[str, Position]] = {}
+        self._balances: dict[str, float] = {}
+        # order_ids that a cancel_all call should report as cancelled while
+        # actually leaving them open, simulating a venue-side silent miss.
+        self._cancel_all_miss_order_ids: set[str] = set()
+
+    def configure_cancel_all_to_silently_miss(self, order_ids: set[str]) -> None:
+        self._cancel_all_miss_order_ids |= set(order_ids)
+
+    def _orders_for(self, tournament_id: str) -> dict[str, Order]:
+        return self._open_orders.setdefault(tournament_id, {})
+
+    async def get_markets(self, tournament_id: str) -> list[Market]:
+        return list(self._markets)
+
+    async def get_book(self, exchange_id: str, tournament_id: str) -> OrderBook:
+        if exchange_id in self._books:
+            return self._books[exchange_id]
+        return OrderBook(exchange_id=exchange_id, tournament_id=tournament_id, bids=[], asks=[])
+
+    async def place_order(self, order: Order) -> Order:
+        order_id = str(next(self._order_id_counter))
+        placed = order.model_copy(
+            update={
+                "id": order_id,
+                "status": OrderStatus.OPEN,
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+        self._orders_for(order.tournament_id)[order_id] = placed
+        self._balances.setdefault(order.tournament_id, self._starting_balance)
+        return placed
+
+    async def cancel(self, order_id: str, tournament_id: str) -> None:
+        self._orders_for(tournament_id).pop(order_id, None)
+
+    async def cancel_all(
+        self,
+        tournament_id: str,
+        exchange_id: str | None = None,
+        market_id: str | None = None,
+    ) -> CancelAllResult:
+        orders = self._orders_for(tournament_id)
+        in_scope_ids = [
+            oid
+            for oid, o in orders.items()
+            if (exchange_id is None or o.exchange_id == exchange_id)
+            and (market_id is None or o.market_id == market_id)
+        ]
+        cancelled = 0
+        for oid in in_scope_ids:
+            if oid in self._cancel_all_miss_order_ids:
+                # Silently miss: report it as cancelled but leave it resting.
+                cancelled += 1
+                continue
+            del orders[oid]
+            cancelled += 1
+        return CancelAllResult(cancelled=cancelled, remaining=0)
+
+    async def get_open_orders(
+        self, tournament_id: str, exchange_id: str | None = None
+    ) -> list[Order]:
+        orders = self._orders_for(tournament_id).values()
+        if exchange_id is not None:
+            orders = [o for o in orders if o.exchange_id == exchange_id]
+        return list(orders)
+
+    async def get_positions(self, tournament_id: str) -> list[Position]:
+        return list(self._positions.get(tournament_id, {}).values())
+
+    async def get_balance(self, tournament_id: str) -> float:
+        return self._balances.get(tournament_id, self._starting_balance)
