@@ -58,19 +58,23 @@ class RiskDecision:
     reason: str | None = None
 
 
+_EXPOSURE_FREEING_STATUSES = (OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
+
+
 def is_exposure_counted(status: OrderStatus) -> bool:
     """An order's exposure counts unless the venue has *confirmed* it
-    cancelled or expired. `OrderStatus.OPEN` counts even past a local
-    `expiration_date` — the platform's `open` flag can stay true after
-    expiry and expiry emits no realtime event (docs/platform/SUMMARY.md), so
-    only an explicit RiskManager.confirm_order_state() call (driven by a
-    reconciliation read) may remove an order from exposure.
+    cancelled, expired, or rejected (never went live). `OrderStatus.OPEN`
+    counts even past a local `expiration_date` — the platform's `open` flag
+    can stay true after expiry and expiry emits no realtime event
+    (docs/platform/SUMMARY.md), so only an explicit
+    RiskManager.confirm_order_state() call (driven by a reconciliation
+    read) may remove an order from exposure.
     # TODO(api): verify live — confirm `status=expired` polling and the
     # `open` flag behave exactly as SUMMARY.md describes before relying on
     # this in production; the spec's wording was inferred from prose, not
     # exercised against the real trading engine yet.
     """
-    return status not in (OrderStatus.CANCELLED, OrderStatus.EXPIRED)
+    return status not in _EXPOSURE_FREEING_STATUSES
 
 
 def _order_notional(order: Order) -> float:
