@@ -9,9 +9,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from predcup.models import Order, OrderStatus
+from predcup.models import Fill, Order, OrderStatus
 from predcup.store import EventStore
 from predcup.venues.base import Venue
+
+MARKOUT_HORIZONS_MINUTES = (1, 5, 30)
 
 
 class Alerter(Protocol):
@@ -101,6 +103,20 @@ def _market_notional(orders: list[Order], market_id: str | None) -> float:
 
 def _party_notional(orders: list[Order], party_id: str | None) -> float:
     return _total_notional([o for o in orders if o.party_id == party_id])
+
+
+def compute_markout(fill: Fill, later_price: float) -> float:
+    """Markout in probability points, positive = the fill looks good so
+    far. Assumes fill.price is already YES-normalized, per CLAUDE.md's
+    convention that all internal prices are ("Convert at the venue boundary
+    only") — so later_price (also YES-normalized) is directly comparable.
+    """
+    benefits_from_price_increase = (fill.side == "yes" and fill.action == "buy") or (
+        fill.side == "no" and fill.action == "sell"
+    )
+    if benefits_from_price_increase:
+        return later_price - fill.price
+    return fill.price - later_price
 
 
 class RiskManager:
@@ -260,4 +276,35 @@ class RiskManager:
         )
         return KillSwitchResult(
             success=False, attempts=max_attempts, remaining_order_ids=remaining_ids
+        )
+
+    def schedule_markouts(
+        self, fill: Fill, price_lookup: Callable[[int], Awaitable[float]]
+    ) -> list[asyncio.Task]:
+        """Log a markout to events_log at 1, 5 and 30 minutes after every
+        fill. `price_lookup(minutes)` is awaited at each horizon to fetch
+        the price to compare against — called with the horizon itself so
+        callers don't need to track wall-clock time separately.
+        """
+        return [
+            asyncio.create_task(self._log_markout_after(fill, price_lookup, minutes))
+            for minutes in MARKOUT_HORIZONS_MINUTES
+        ]
+
+    async def _log_markout_after(
+        self, fill: Fill, price_lookup: Callable[[int], Awaitable[float]], minutes: int
+    ) -> None:
+        await self._sleep(minutes * 60)
+        later_price = await price_lookup(minutes)
+        markout = compute_markout(fill, later_price)
+        self._event_store.log(
+            "markout",
+            {
+                "fill_id": fill.id,
+                "exchange_id": fill.exchange_id,
+                "minutes": minutes,
+                "fill_price": fill.price,
+                "later_price": later_price,
+                "markout": markout,
+            },
         )
