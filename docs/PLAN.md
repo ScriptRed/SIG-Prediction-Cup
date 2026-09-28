@@ -10,8 +10,8 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [x] `requirements.txt`, `.gitignore`, `config/settings.yaml` skeleton
 
 ## Stage 1 — Before 1 October (manual trading with good fair values)
-- [ ] 1. `models.py` + `store.py` (tables: markets, market_map, external_prices, fair_values, orders, fills, positions, events_log)
-- [ ] 2. `venues/base.py` + `sim/mock_exchange.py`
+- [ ] 1. `models.py` (done) + `store.py` (only `events_log` so far — markets, market_map, external_prices, fair_values, orders, fills, positions tables still open)
+- [x] 2. `venues/base.py` + `sim/mock_exchange.py`
 - [ ] 3. `venues/kalshi.py` + `venues/polymarket.py` (read-only, poll every 5–15 s)
 - [ ] 4. `config/market_map.csv` (Claude drafts, human verifies every row)
 - [ ] 5. `fairvalue.py` v1
@@ -20,7 +20,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [ ] 8. Election-night quote-pull rule: pull quotes in a race on a credible call and in all uncalled races in a state at poll close
 
 ## Stage 2 — 1–7 October (automated market making)
-- [ ] 9. `risk.py` + kill switch (tests first)
+- [x] 9. `risk.py` + kill switch (tests first)
 - [ ] 10. `strategies/quoter.py` (+ optional stink orders)
 - [ ] 11. Offline test vs mock exchange with replayed Kalshi history
 - [ ] 12. Shadow mode on real platform (log-only)
