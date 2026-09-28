@@ -34,23 +34,25 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 - [ ] Markout logging (1 / 5 / 30 min) present
 
 ### Markets (if visible before launch)
-- [ ] Are Cup markets visible before trading opens? If yes, do section B's Info-tab checks early
+- [x] Are Cup markets visible before trading opens? **Yes** — confirmed 2026-09-28, all 237 readable via `GET /markets`, tournament itself still `status: "draft"`. Section B's market-list items done early (above); Info-tab and market-map items still open
 
 ---
 
 ## B. Launch day, before 17:00 London
 
 ### Market list
-- [ ] Full list of Cup markets saved (id, title, category, exchange ids)
-- [ ] The four chamber-control markets identified
-- [ ] Any multi-outcome or composite markets? Note them
+- [x] Full list of Cup markets saved (id, title, category, exchange ids) — `data/cup_markets.csv`, 237 markets, 2026-09-28. Also parsed: state, office, district, party, race key
+- [x] The four chamber-control markets identified — category is **"Freeform"**, not "Other" as assumed earlier: "Will the [Republican/Democratic] Party win the U.S. [Senate/House]?" (ids 151–154)
+- [x] Any multi-outcome or composite markets? Note them — none. All 237 are single-exchange binary markets (`isComposite`/`isMultiOutcome` both false, one exchange each)
 
 ### Info tab of every market you'll trade (resolution risk)
 - [ ] Resolution rules read
 - [ ] **Settlement data source** (AP? state officials? other?) → if AP, set up an AP race-call alert source
 - [ ] **Per-market close / settlement date** — anything before 4 Nov 12:00 ET?
 - [ ] Party definitions (independents caucusing with a party?)
-- [ ] Runoff handling / ranked-choice / 50–50 Senate handling
+- [ ] **Ranked-choice settlement — Alaska, Maine:** confirm how/when SIG settles once RCV tabulation (which can run well past election night) finishes; don't assume a same-night result for these two states' Senate/House races
+- [ ] **Runoffs — Georgia, Louisiana:** confirm SIG's settlement date/rule when no candidate clears a majority on election night and the race goes to a runoff weeks later
+- [ ] **Races with a serious independent candidate but no corresponding SIG market** — start with **Michigan Governor** (SIG lists only R/D there; check whether other headline races have the same gap). An omitted independent's real vote share breaks the "R + D ≈ 100" assumption the overround scanner and any R-vs-D consistency check rely on
 - [ ] N/A or cancellation conditions
 
 ### Market map
@@ -74,7 +76,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 
 | Question | How to find out | Found |
 |---|---|---|
-| Rate limits | Log rate-limit response headers; note request rate at first 429 | |
+| Rate limits | Log rate-limit response headers; note request rate at first 429 | Hit `429 RATE_LIMITED` on `GET /exchanges/{id}/price` with ~237 back-to-back requests and no delay between them (2026-09-28, scripts/scan_race_overround.py). 0.25–0.3 s pacing + exponential backoff on 429 cleared it. Exact requests/sec threshold not measured |
 | `Retry-After` present on 429? | Log headers | |
 | Minimum / maximum `expirationDate` allowed | Start with 60 s expiry; try shorter only after it works | |
 | Does an expired order still show `open: true`? | Query `status=expired` vs `status=open` after an expiry | |
@@ -93,6 +95,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 
 ## E. Later in October
 
+- [ ] **API key expires 27 Dec 2026** — after trading closes (4 Nov) but rotate/renew before then anyway, in case settlement checks or corrections after close still need it
 - [ ] Super Signal appears (after 24 h and once elite traders exist) — how is "strongest traders" defined?
 - [ ] Changelog page — does it exist? Save it if so
 - [ ] Do new markets get listed mid-competition? (opening-moment opportunities)
