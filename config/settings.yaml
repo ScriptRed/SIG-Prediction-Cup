@@ -33,6 +33,7 @@ risk:
   phase: 1
   max_bankroll_fraction_per_market: 0.05 # max 5% bankroll per market
   max_total_exposure_fraction: 0.60 # max 60% total exposure
+  max_party_exposure_fraction: 0.25 # net exposure to one party/candidate across all races; per-market caps alone don't cover correlated polling error
   max_order_size_susqies: 500 # per-market max order size; TODO: tune once bankroll/market liquidity is known
   max_price_deviation_from_fair_value: 0.03 # limit price must be within this many points of fair value
   daily_loss_stop_fraction: 0.08 # daily loss stop 8%

@@ -20,6 +20,11 @@ class Alerter(Protocol):
 class RiskLimits:
     max_bankroll_fraction_per_market: float
     max_total_exposure_fraction: float
+    # Net exposure to one party/candidate across all races. Per-market caps
+    # alone don't cover this: several different race markets can all be a
+    # bet on the same party, and a polling-error scenario moves them
+    # together, so the aggregate needs its own budget.
+    max_party_exposure_fraction: float
     max_order_size_susqies: float
     max_price_deviation_from_fair_value: float
     daily_loss_stop_fraction: float
@@ -37,6 +42,7 @@ def load_risk_limits(config: dict) -> RiskLimits:
     return RiskLimits(
         max_bankroll_fraction_per_market=_require(section, "max_bankroll_fraction_per_market"),
         max_total_exposure_fraction=_require(section, "max_total_exposure_fraction"),
+        max_party_exposure_fraction=_require(section, "max_party_exposure_fraction"),
         max_order_size_susqies=_require(section, "max_order_size_susqies"),
         max_price_deviation_from_fair_value=_require(
             section, "max_price_deviation_from_fair_value"
@@ -78,6 +84,10 @@ def _total_notional(orders: list[Order]) -> float:
 
 def _market_notional(orders: list[Order], market_id: str | None) -> float:
     return _total_notional([o for o in orders if o.market_id == market_id])
+
+
+def _party_notional(orders: list[Order], party_id: str | None) -> float:
+    return _total_notional([o for o in orders if o.party_id == party_id])
 
 
 class RiskManager:
@@ -161,6 +171,11 @@ class RiskManager:
         market_cap = limits.max_bankroll_fraction_per_market * self._bankroll
         if _market_notional(tracked, order.market_id) + order_notional > market_cap:
             return RiskDecision(False, "exceeds per-market bankroll cap")
+
+        if order.party_id is not None:
+            party_cap = limits.max_party_exposure_fraction * self._bankroll
+            if _party_notional(tracked, order.party_id) + order_notional > party_cap:
+                return RiskDecision(False, "exceeds net party-exposure cap")
 
         total_cap = limits.max_total_exposure_fraction * self._bankroll
         if _total_notional(tracked) + order_notional > total_cap:

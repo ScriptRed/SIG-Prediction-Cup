@@ -36,6 +36,7 @@ def limits():
     return RiskLimits(
         max_bankroll_fraction_per_market=0.5,
         max_total_exposure_fraction=0.9,
+        max_party_exposure_fraction=1.0,  # not the limit under test in this file
         max_order_size_susqies=1_000_000,  # effectively unlimited unless a test overrides
         max_price_deviation_from_fair_value=0.03,
         daily_loss_stop_fraction=0.08,
@@ -99,6 +100,7 @@ def test_max_order_size_cap(tmp_path):
     limits = RiskLimits(
         max_bankroll_fraction_per_market=1.0,
         max_total_exposure_fraction=1.0,
+        max_party_exposure_fraction=1.0,
         max_order_size_susqies=200,
         max_price_deviation_from_fair_value=0.5,
         daily_loss_stop_fraction=0.5,
@@ -172,6 +174,7 @@ def test_load_risk_limits_from_config_dict():
         "risk": {
             "max_bankroll_fraction_per_market": 0.05,
             "max_total_exposure_fraction": 0.6,
+            "max_party_exposure_fraction": 0.4,
             "max_order_size_susqies": 500,
             "max_price_deviation_from_fair_value": 0.03,
             "daily_loss_stop_fraction": 0.08,
