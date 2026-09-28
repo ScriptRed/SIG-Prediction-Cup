@@ -4,6 +4,8 @@ code path may call a venue's place_order directly.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -58,6 +60,13 @@ class RiskDecision:
     reason: str | None = None
 
 
+@dataclass
+class KillSwitchResult:
+    success: bool
+    attempts: int
+    remaining_order_ids: list[str]
+
+
 _EXPOSURE_FREEING_STATUSES = (OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
 
 
@@ -103,6 +112,7 @@ class RiskManager:
         venue: Venue,
         tournament_id: str,
         alerter: Alerter,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         if not tournament_id:
             raise ValueError("tournament_id is required and cannot be blank")
@@ -112,6 +122,7 @@ class RiskManager:
         self._venue = venue
         self._tournament_id = tournament_id
         self._alerter = alerter
+        self._sleep = sleep
         self._daily_realized_pnl = 0.0
         self._orders: dict[str, Order] = {}
 
@@ -186,3 +197,67 @@ class RiskManager:
             return RiskDecision(False, "exceeds total exposure cap")
 
         return RiskDecision(True)
+
+    async def kill_switch(
+        self,
+        exchange_id: str | None = None,
+        market_id: str | None = None,
+        max_attempts: int = 3,
+        retry_delay_seconds: float = 1.0,
+    ) -> KillSwitchResult:
+        """Scoped cancel-all, then confirm via get_open_orders (our stand-in
+        for GET /orders?status=open scoped to the Cup). The cancel-all
+        response is never trusted alone — a venue can report success while
+        an order is still actually resting (docs/platform/SUMMARY.md's
+        CancelAllPausedError, or a plain bug). Any discrepancy is alerted
+        immediately, not just after retries are exhausted, and retried up
+        to max_attempts times.
+        """
+        open_orders: list[Order] = []
+        for attempt in range(1, max_attempts + 1):
+            await self._venue.cancel_all(
+                self._tournament_id, exchange_id=exchange_id, market_id=market_id
+            )
+            open_orders = await self._venue.get_open_orders(
+                self._tournament_id, exchange_id=exchange_id
+            )
+            if not open_orders:
+                self._event_store.log(
+                    "kill_switch",
+                    {
+                        "attempt": attempt,
+                        "result": "clean",
+                        "exchange_id": exchange_id,
+                        "market_id": market_id,
+                    },
+                )
+                return KillSwitchResult(success=True, attempts=attempt, remaining_order_ids=[])
+
+            remaining_ids = [o.id for o in open_orders]
+            self._alerter.send(
+                f"Kill switch: {len(remaining_ids)} order(s) still open after "
+                f"cancel-all (attempt {attempt}/{max_attempts}); retrying: {remaining_ids}"
+            )
+            self._event_store.log(
+                "kill_switch",
+                {
+                    "attempt": attempt,
+                    "result": "orders_remaining",
+                    "remaining_order_ids": remaining_ids,
+                },
+            )
+            if attempt < max_attempts:
+                await self._sleep(retry_delay_seconds)
+
+        remaining_ids = [o.id for o in open_orders]
+        self._alerter.send(
+            f"Kill switch FAILED after {max_attempts} attempts: "
+            f"{len(remaining_ids)} order(s) still open: {remaining_ids}"
+        )
+        self._event_store.log(
+            "kill_switch",
+            {"attempt": max_attempts, "result": "failed", "remaining_order_ids": remaining_ids},
+        )
+        return KillSwitchResult(
+            success=False, attempts=max_attempts, remaining_order_ids=remaining_ids
+        )

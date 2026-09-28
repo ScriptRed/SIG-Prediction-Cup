@@ -32,12 +32,16 @@ class MockExchange(Venue):
         # tournament_id -> exchange_id -> Position
         self._positions: dict[str, dict[str, Position]] = {}
         self._balances: dict[str, float] = {}
-        # order_ids that a cancel_all call should report as cancelled while
-        # actually leaving them open, simulating a venue-side silent miss.
-        self._cancel_all_miss_order_ids: set[str] = set()
+        # order_id -> remaining cancel_all calls that should report it
+        # cancelled while actually leaving it open (simulating a venue-side
+        # silent miss). float("inf") means miss on every call indefinitely.
+        self._cancel_all_miss_counts: dict[str, float] = {}
 
-    def configure_cancel_all_to_silently_miss(self, order_ids: set[str]) -> None:
-        self._cancel_all_miss_order_ids |= set(order_ids)
+    def configure_cancel_all_to_silently_miss(
+        self, order_ids: set[str], times: float = float("inf")
+    ) -> None:
+        for order_id in order_ids:
+            self._cancel_all_miss_counts[order_id] = times
 
     def _orders_for(self, tournament_id: str) -> dict[str, Order]:
         return self._open_orders.setdefault(tournament_id, {})
@@ -81,8 +85,11 @@ class MockExchange(Venue):
         ]
         cancelled = 0
         for oid in in_scope_ids:
-            if oid in self._cancel_all_miss_order_ids:
+            remaining_misses = self._cancel_all_miss_counts.get(oid, 0)
+            if remaining_misses > 0:
                 # Silently miss: report it as cancelled but leave it resting.
+                if remaining_misses != float("inf"):
+                    self._cancel_all_miss_counts[oid] = remaining_misses - 1
                 cancelled += 1
                 continue
             del orders[oid]
