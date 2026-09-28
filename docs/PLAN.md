@@ -7,7 +7,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [x] Record from docs: auth, endpoints, websocket?, rate limits, position limits, price format, tick size → summary in `docs/platform/SUMMARY.md`
 - [ ] Save Kalshi and Polymarket API docs into `docs/kalshi/`, `docs/polymarket/`
 - [ ] Cloud VM (US-East), Telegram bot token, `.env` created (git-ignored)
-- [ ] `requirements.txt`, `.gitignore`, `config/settings.yaml` skeleton
+- [x] `requirements.txt`, `.gitignore`, `config/settings.yaml` skeleton
 
 ## Stage 1 — Before 1 October (manual trading with good fair values)
 - [ ] 1. `models.py` + `store.py` (tables: markets, market_map, external_prices, fair_values, orders, fills, positions, events_log)

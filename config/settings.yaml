@@ -1,0 +1,59 @@
+# Tunable config for the Predictions Cup bot. Nothing here is a secret —
+# secrets (API keys, bot tokens) live only in .env. See CLAUDE.md for the
+# hard rules these values must respect.
+
+platform:
+  base_url: "https://www.thesuper.market/api/v1"
+  # TODO(api): fill in once we have an API key and have called GET /tournaments
+  # to find the Predictions Cup's slug and UUID. Never rely on the org default.
+  tournament_slug: null
+  tournament_id: null
+
+kill_switch:
+  file_path: "KILL" # repo root; presence halts all quoting and cancels orders
+  telegram_kill_command: "/kill"
+
+venues:
+  kalshi:
+    poll_interval_seconds: 10 # read-only, 5-15s per CLAUDE.md
+  polymarket:
+    poll_interval_seconds: 10 # read-only, 5-15s per CLAUDE.md
+  sig:
+    # realtime token lasts 3h (docs/platform/SUMMARY.md); refresh with margin
+    realtime_token_refresh_margin_seconds: 600
+
+fair_value:
+  # blend Kalshi + Polymarket in log-odds space, liquidity-weighted
+  max_outside_data_age_seconds: 60 # stale-data stop threshold (CLAUDE.md quoter rule)
+  min_confidence_to_trade: 0.5 # market_map.csv confidence column; below this, no auto-trading
+
+# Phase 1 risk defaults (CLAUDE.md "Risk (Phase 1 defaults, in config)").
+# Phase 2 loosens these only via an explicit config change, never in code.
+risk:
+  phase: 1
+  max_bankroll_fraction_per_market: 0.05 # max 5% bankroll per market
+  max_total_exposure_fraction: 0.60 # max 60% total exposure
+  max_order_size_susqies: 500 # per-market max order size; TODO: tune once bankroll/market liquidity is known
+  max_price_deviation_from_fair_value: 0.03 # limit price must be within this many points of fair value
+  daily_loss_stop_fraction: 0.08 # daily loss stop 8%
+  stale_data_stop_seconds: 60 # halt quoting if outside data older than this (mirrors fair_value.max_outside_data_age_seconds)
+  reconciliation_interval_seconds: 60 # compare local positions vs get_positions() every minute
+
+quoter:
+  min_edge: 0.01 # half-spread floor
+  uncertainty_coefficient: 1.0 # c: half-spread = max(min_edge, c * uncertainty)
+  inventory_skew_coefficient: 0.02 # k: reservation price = fair_value - k * inventory
+  requote_fair_value_move_ticks: 2 # re-quote when fair value moves > 1 point (0.005 tick each)
+  quote_expiration_seconds: 30 # dead-man's switch: every resting quote gets a short expirationDate
+  pull_quotes_before_events: [] # scheduled events (ISO timestamps or cron-like rules) to pull all quotes before
+
+alerts:
+  gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert
+  yes_no_arb_threshold: 0.01 # YES+NO sum deviation from 1 that triggers an alert
+  pair_inconsistency_threshold: 0.03 # cross-market consistency violation threshold
+
+election_night:
+  # Stage 1 step 8 quote-pull rule: pull quotes in a race on a credible call,
+  # and in all uncalled races in a state at poll close. Populated in Stage 4.
+  credible_call_sources: []
+  poll_close_times_by_state: {}
