@@ -15,6 +15,7 @@ Trading system for the Susquehanna Predictions Cup (simulated prediction markets
 
 ## Platform API rules (see `docs/platform/SUMMARY.md`)
 
+- The full OpenAPI spec is `docs/platform/openapi.json`. Treat it as the source of truth for request and response shapes. Search it for the endpoint you need; don't read the whole file.
 - Base URL `https://www.thesuper.market/api/v1`, Bearer key with read + trade scopes.
 - **Always pass the Cup's `tournamentId`** on every read and order. Never rely on the org default.
 - Positions/P&L come from **`/tournaments/{slug}/portfolio/*`**, never the no-argument `/portfolio/*` reads.
