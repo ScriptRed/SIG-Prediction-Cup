@@ -110,4 +110,6 @@ Profits are extremely concentrated in a tiny share of accounts, mostly automated
 - 2026-09-28: Election-night quote-pull rule added (race calls and poll closings). Chamber-control capital treated as locked until manual settlement.
 - 2026-09-28: Profile set fully private before first trade. Leaders' public profiles checked manually before Phase 2 sizing.
 
+- 2026-09-29: Market tiers in `market_map.csv`: A (Kalshi/Polymarket anchored), B (ratings-based fair value), C (parity only); nothing auto-trades unless tier and fair-value source allow it. Planned: `ratings` fair-value source from hand-maintained `config/ratings.csv` (mapping + per-rating uncertainty in settings, staleness by rating date), safe-seat review flags, mid-October district model (partisan lean + national environment from Kalshi House control and anchored races + incumbency) feeding Tier B and `scenario.py`. Launch day: manual trading of Kalshi mispricings and parity gaps at the open with the bot in shadow mode, then live under the size ramp. See `docs/PLAN.md` Stage 2b.
+- 2026-09-29: Launch size ramp in `risk.py`: order size and per-market cap start at 10% and double after N clean reconciliations; any mismatch, unexpected 4xx or 429 drops one step and alerts.
 (Append new decisions here with dates.)

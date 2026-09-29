@@ -27,6 +27,16 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [ ] 13. Live under the size ramp (`risk.size_ramp`: 10% launch fraction, ×2 per 120 clean reconciliations, any mismatch/unexpected 4xx/429 drops a step + alerts), reconciliation every minute. Ramp logic in `risk.py` done; still to wire: reconciliation loop → `record_reconciliation()`, `sig.py` 429s → `record_rate_limited()`, `main.py` builds `SizeRamp` from config
 - [ ] 14. Docker + systemd on VM, daily summary + heartbeat to Telegram
 
+## Stage 2b — Market tiers, ratings fair value, district model (planned 2026-09-29, not started)
+
+Launch-day plan (1 Oct): trade by hand at the open against Kalshi mispricings and parity gaps while the bot runs in shadow mode (step 12); the bot then goes live under the size ramp (step 13).
+
+- [ ] T1. Market tiers in `config/market_map.csv` (new `tier` column): **A** = Kalshi/Polymarket anchored, **B** = ratings-based fair value, **C** = parity only. Nothing trades automatically unless both its tier and its fair-value source allow it (A → market-based fair value; B → ratings, only once T4's review gate is passed; C → no fair-value quoting, parity/consistency trades only). `verified=false` still means no automatic trading, whatever the tier.
+- [ ] T2. `fairvalue.py` second source type `"ratings"`, read from hand-maintained `config/ratings.csv` (`race_key, source, rating, date`). Rating → probability mapping and per-rating uncertainty in `settings.yaml`. Own staleness rule based on the rating `date` (max age in config), not the 60 s outside-data rule.
+- [ ] T3. `config/ratings.csv` first fill (hand-maintained; no scraping of rating sites without checking ToS/robots.txt).
+- [ ] T4. Safe-seat module: flag markets priced well above their ratings-based probability → alert/dashboard for manual review. No automatic trading on a flagged market until I've reviewed it.
+- [ ] T5. Mid-October: district model (partisan lean + national environment + incumbency). National environment derived from Kalshi's House-control price and the Tier A races. Feeds Tier B fair values and `scenario.py` (step 15) for Phase 2.
+
 ## Stage 3 — Mid October
 - [ ] 15. `scenario.py` correlated Monte Carlo; calibrate to Kalshi chamber-control prices; compare with platform
 - [ ] 16. `strategies/scanner.py` consistency alerts using scenario model
