@@ -16,15 +16,18 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 - [ ] Conflict check: any campaign you or family work/intern/volunteer for → add those markets to a blocklist in config
 
 ### Infrastructure
-- [ ] VM running, `ssh predcup@SERVER_IP` works, root/password login disabled, firewall on
-- [ ] Clock synced (`timedatectl` → synchronized: yes)
-- [ ] Repo cloned on VM, `.env` copied via `scp`, `git status` on VM shows `.env` not tracked
+- [x] VM running: DigitalOcean **SFO3**, $12 plan (1 vCPU / 2 GB). IP kept in personal notes only — never commit it
+- [x] `ssh predcup@SERVER_IP` works with SSH key only; root login and password login disabled; firewall on
+- [x] Clock synced (`timedatectl` → synchronized: yes)
+- [x] Repo cloned on VM, `.env` copied via `scp`, `git status` on VM shows `.env` not tracked
 - [ ] Telegram bot sends a test message to your phone
 - [ ] Telegram bot **ignores commands from any other chat ID**
 - [ ] Latency from VM measured: `curl -o /dev/null -s -w "%{time_total}\n" https://www.thesuper.market/api/v1/tournaments` (with auth header), plus Kalshi and Polymarket
+  - Measured from the VM (SFO3): SIG unauthenticated GET **0.08–0.13 s** (5 samples); realtime (Supabase) connect **0.010 s**; Kalshi total **0.14 s**. For comparison, SIG from London ≈ **1.0 s**.
+  - Still open: SIG with auth header; Polymarket (deferred until after launch)
 
 ### Bot
-- [ ] All tests pass on the VM (`pytest`)
+- [x] All tests pass on the VM (`pytest`, 212 passed)
 - [ ] Full loop run for hours against `mock_exchange` without errors
 - [ ] **Kill switch tested end to end** against mock: `/kill` from phone AND `touch KILL` both cancel everything and stop quoting
 - [ ] Kill switch confirms via `GET /orders?status=open` (scoped to Cup) and alerts if anything remains
@@ -96,6 +99,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 ## E. Later in October
 
 - [ ] **API key expires 27 Dec 2026** — after trading closes (4 Nov) but rotate/renew before then anyway, in case settlement checks or corrections after close still need it
+- [ ] Destroy the DigitalOcean droplet after final settlement (billing continues even when powered off).
 - [ ] Super Signal appears (after 24 h and once elite traders exist) — how is "strongest traders" defined?
 - [ ] Changelog page — does it exist? Save it if so
 - [ ] Do new markets get listed mid-competition? (opening-moment opportunities)
