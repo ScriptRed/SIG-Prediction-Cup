@@ -39,6 +39,17 @@ risk:
   daily_loss_stop_fraction: 0.08 # daily loss stop 8%
   stale_data_stop_seconds: 60 # halt quoting if outside data older than this (mirrors fair_value.max_outside_data_age_seconds)
   reconciliation_interval_seconds: 60 # compare local positions vs get_positions() every minute
+  # Launch size ramp: max_order_size_susqies and max_bankroll_fraction_per_market
+  # start at launch_fraction of the values above and multiply by step_multiplier
+  # after clean_reconciliations_per_step clean reconciliations in a row (no
+  # mismatch, unexpected 4xx or 429 since the last step). Any failure drops one
+  # step and alerts. 0.1 -> 0.2 -> 0.4 -> 0.8 -> 1.0; at 60 s reconciliation,
+  # 120 per step = 2 h per step, ~8 h clean to full size. Restart = back to step 0.
+  # launch_fraction: 1.0 disables the ramp.
+  size_ramp:
+    launch_fraction: 0.10
+    step_multiplier: 2.0
+    clean_reconciliations_per_step: 120
 
 quoter:
   min_edge: 0.01 # half-spread floor

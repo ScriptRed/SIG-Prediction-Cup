@@ -56,6 +56,121 @@ def load_risk_limits(config: dict) -> RiskLimits:
     )
 
 
+@dataclass(frozen=True)
+class SizeRampConfig:
+    """Launch sizing: order-size and per-market limits start at
+    launch_fraction of their configured values and multiply by
+    step_multiplier after every clean_reconciliations_per_step clean
+    reconciliations in a row, capped at 1.0 (full configured size).
+    launch_fraction = 1.0 disables the ramp.
+    """
+
+    launch_fraction: float
+    step_multiplier: float
+    clean_reconciliations_per_step: int
+
+    def __post_init__(self) -> None:
+        if not 0 < self.launch_fraction <= 1:
+            raise ValueError("size_ramp.launch_fraction must be in (0, 1]")
+        if self.step_multiplier <= 1:
+            raise ValueError("size_ramp.step_multiplier must be > 1")
+        if self.clean_reconciliations_per_step < 1:
+            raise ValueError("size_ramp.clean_reconciliations_per_step must be >= 1")
+
+
+def load_size_ramp_config(config: dict) -> SizeRampConfig:
+    if "size_ramp" not in config["risk"]:
+        raise KeyError("config['risk'] is missing required key 'size_ramp'")
+    section = config["risk"]["size_ramp"]
+    return SizeRampConfig(
+        launch_fraction=_require(section, "launch_fraction"),
+        step_multiplier=_require(section, "step_multiplier"),
+        clean_reconciliations_per_step=int(_require(section, "clean_reconciliations_per_step")),
+    )
+
+
+_FULL_SIZE_TOLERANCE = 1e-9
+
+
+def ramp_multiplier(config: SizeRampConfig, step: int) -> float:
+    m = config.launch_fraction * config.step_multiplier**step
+    return 1.0 if m >= 1.0 - _FULL_SIZE_TOLERANCE else m
+
+
+def max_ramp_step(config: SizeRampConfig) -> int:
+    step = 0
+    while ramp_multiplier(config, step) < 1.0:
+        step += 1
+    return step
+
+
+RAMP_FAILURE_KINDS = ("reconciliation_mismatch", "unexpected_4xx", "rate_limited")
+
+
+class SizeRamp:
+    """Step state for the launch size ramp. Deliberately not restored from
+    events_log on restart: a restart starts again at launch_fraction, which
+    is the conservative choice when we don't know why the process died.
+    """
+
+    def __init__(self, config: SizeRampConfig, event_store: EventStore, alerter: Alerter) -> None:
+        self._config = config
+        self._event_store = event_store
+        self._alerter = alerter
+        self._max_step = max_ramp_step(config)
+        self.step = 0
+        self.clean_count = 0
+        self._log("init")
+
+    @property
+    def multiplier(self) -> float:
+        return ramp_multiplier(self._config, self.step)
+
+    @property
+    def at_full_size(self) -> bool:
+        return self.step >= self._max_step
+
+    def record_clean_reconciliation(self) -> None:
+        if self.at_full_size:
+            return
+        self.clean_count += 1
+        self._log("clean_reconciliation")
+        if self.clean_count >= self._config.clean_reconciliations_per_step:
+            self.step += 1
+            self.clean_count = 0
+            self._log("step_up")
+            self._alerter.send(
+                f"Size ramp stepped up to step {self.step}/{self._max_step} "
+                f"({self.multiplier:.0%} of configured size)."
+            )
+
+    def record_failure(self, kind: str, detail: str) -> None:
+        if kind not in RAMP_FAILURE_KINDS:
+            raise ValueError(f"unknown size-ramp failure kind {kind!r}")
+        previous = self.step
+        self.step = max(0, self.step - 1)
+        self.clean_count = 0
+        self._log("step_down", failure_kind=kind, detail=detail, previous_step=previous)
+        self._alerter.send(
+            f"Size ramp: {kind} ({detail}). Step {previous} -> {self.step}/{self._max_step} "
+            f"({self.multiplier:.0%} of configured size); clean count reset."
+        )
+
+    def _log(self, action: str, **extra: object) -> None:
+        self._event_store.log(
+            "size_ramp",
+            {
+                "action": action,
+                "step": self.step,
+                "max_step": self._max_step,
+                "multiplier": self.multiplier,
+                "clean_count": self.clean_count,
+                "clean_reconciliations_per_step": self._config.clean_reconciliations_per_step,
+                **extra,
+            },
+        )
+
+
 @dataclass
 class RiskDecision:
     approved: bool
@@ -165,6 +280,7 @@ class RiskManager:
         tournament_id: str,
         alerter: Alerter,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        size_ramp: SizeRamp | None = None,
     ) -> None:
         if not tournament_id:
             raise ValueError("tournament_id is required and cannot be blank")
@@ -178,6 +294,32 @@ class RiskManager:
         self._daily_realized_pnl = 0.0
         self._orders: dict[str, Order] = {}
         self._halted_markets: set[str] = set()
+        self._size_ramp = size_ramp
+
+    def _ramp_multiplier(self) -> float:
+        return self._size_ramp.multiplier if self._size_ramp is not None else 1.0
+
+    def record_reconciliation(self, matched: bool, detail: str = "") -> None:
+        """Feed each position reconciliation result to the size ramp. The
+        cancel-all / halt on mismatch is the reconciliation loop's job;
+        this only moves the ramp."""
+        if self._size_ramp is None:
+            return
+        if matched:
+            self._size_ramp.record_clean_reconciliation()
+        else:
+            self._size_ramp.record_failure("reconciliation_mismatch", detail)
+
+    def record_rate_limited(self, endpoint: str, retry_after_seconds: float | None = None) -> None:
+        """The venue adapter calls this on every 429 it sees, including ones
+        it then retries transparently — a 429 means we're pushing the
+        (unpublished) limit, so the ramp backs off either way."""
+        if self._size_ramp is None:
+            return
+        detail = f"429 on {endpoint}"
+        if retry_after_seconds is not None:
+            detail += f", Retry-After {retry_after_seconds:g}s"
+        self._size_ramp.record_failure("rate_limited", detail)
 
     def update_bankroll(self, bankroll: float) -> None:
         self._bankroll = bankroll
@@ -225,6 +367,10 @@ class RiskManager:
             f"Market {market_id} halted: unexpected {status_code} {error_code} "
             f"on order placement ({message}). No retry attempted."
         )
+        if self._size_ramp is not None:
+            self._size_ramp.record_failure(
+                "unexpected_4xx", f"{status_code} {error_code} on {market_id}"
+            )
 
     def check(self, order: Order, *, fair_value: float | None, outside_data_age_seconds: float) -> RiskDecision:
         decision = self._evaluate(order, fair_value=fair_value, outside_data_age_seconds=outside_data_age_seconds)
@@ -258,9 +404,13 @@ class RiskManager:
             return RiskDecision(False, "daily loss stop triggered")
 
         order_notional = _order_notional(order)
+        # The ramp scales only order size and the per-market cap; total and
+        # party exposure caps are portfolio safety limits and stay as set.
+        ramp = self._ramp_multiplier()
+        ramp_note = f" (size ramp at {ramp:.0%})" if ramp < 1.0 else ""
 
-        if order_notional > limits.max_order_size_susqies:
-            return RiskDecision(False, "exceeds max order size")
+        if order_notional > limits.max_order_size_susqies * ramp:
+            return RiskDecision(False, "exceeds max order size" + ramp_note)
 
         if order.price is not None and fair_value is not None:
             if abs(order.price - fair_value) > limits.max_price_deviation_from_fair_value:
@@ -268,9 +418,9 @@ class RiskManager:
 
         tracked = self._tracked_orders()
 
-        market_cap = limits.max_bankroll_fraction_per_market * self._bankroll
+        market_cap = limits.max_bankroll_fraction_per_market * self._bankroll * ramp
         if _market_notional(tracked, order.market_id) + order_notional > market_cap:
-            return RiskDecision(False, "exceeds per-market bankroll cap")
+            return RiskDecision(False, "exceeds per-market bankroll cap" + ramp_note)
 
         if order.party_id in _RD_PARTIES:
             party_cap = limits.max_party_exposure_fraction * self._bankroll

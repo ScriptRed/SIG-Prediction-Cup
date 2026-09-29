@@ -79,7 +79,7 @@ predcup/
 
 - **Fair value:** liquidity-weighted average of Kalshi and Polymarket prices in log-odds space, adjusted for resolution differences from `market_map.csv`, optional manual override. Uncertainty widens with venue disagreement, thin books and stale data. No external match → no automatic trading. A `market_map.csv` row with `verified=false` counts as no match — `fairvalue.py` must never trade off an unverified row, however high its `confidence`.
 - **Quoter:** reservation price = fair value − k × inventory; half-spread = max(min_edge, c × uncertainty). Re-quote when fair value moves > 1 point or outside prices move sharply; pull all quotes before scheduled events in config; stop if outside data is > 60 s stale.
-- **Risk (Phase 1 defaults, in config):** max 5% bankroll per market, max 60% total exposure, per-market max order size, price must be within X points of fair value, daily loss stop 8%, stale-data stop. Phase 2 loosens limits only via an explicit config change.
+- **Risk (Phase 1 defaults, in config):** max 5% bankroll per market, max 60% total exposure, per-market max order size, price must be within X points of fair value, daily loss stop 8%, stale-data stop. **Size ramp:** order size and per-market cap start at `risk.size_ramp.launch_fraction` and step up ×`step_multiplier` only after N clean reconciliations with no unexpected 4xx/429; any failure drops one step and alerts. Phase 2 loosens limits only via an explicit config change.
 - **Reconciliation:** compare local positions with `get_positions()` every minute; on mismatch → cancel all, halt, alert.
 - **Netting:** holding YES and buying NO cancels pairs and pays 1 per pair immediately; position logic must model this.
 

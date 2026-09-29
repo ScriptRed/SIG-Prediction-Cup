@@ -24,7 +24,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [ ] 10. `strategies/quoter.py` (+ optional stink orders)
 - [ ] 11. Offline test vs mock exchange with replayed Kalshi history
 - [ ] 12. Shadow mode on real platform (log-only)
-- [ ] 13. Live at 10% size for 2 days, reconciliation every minute
+- [ ] 13. Live under the size ramp (`risk.size_ramp`: 10% launch fraction, ×2 per 120 clean reconciliations, any mismatch/unexpected 4xx/429 drops a step + alerts), reconciliation every minute. Ramp logic in `risk.py` done; still to wire: reconciliation loop → `record_reconciliation()`, `sig.py` 429s → `record_rate_limited()`, `main.py` builds `SizeRamp` from config
 - [ ] 14. Docker + systemd on VM, daily summary + heartbeat to Telegram
 
 ## Stage 3 — Mid October
