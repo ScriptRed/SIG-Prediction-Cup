@@ -10,7 +10,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [x] `requirements.txt`, `.gitignore`, `config/settings.yaml` skeleton
 
 ## Stage 1 — Before 1 October (manual trading with good fair values)
-- [ ] 1. `models.py` (done) + `store.py` (only `events_log` so far — markets, market_map, external_prices, fair_values, orders, fills, positions tables still open)
+- [ ] 1. `models.py` (done) + `store.py` (`events_log`, `ramp_state`, `orders`, `fills`, `positions` done — markets, market_map, external_prices, fair_values tables still open)
 - [x] 2. `venues/base.py` + `sim/mock_exchange.py`
 - [ ] 3. `venues/kalshi.py` + `venues/polymarket.py` (read-only, poll every 5–15 s)
 - [ ] 4. `config/market_map.csv` (Claude drafts, human verifies every row)
