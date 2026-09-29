@@ -22,6 +22,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 ## Stage 2 — 1–7 October (automated market making)
 - [x] 9. `risk.py` + kill switch (tests first)
 - [ ] 10. `strategies/quoter.py` (+ optional stink orders)
+- [ ] 10a. Loop-lag metric (`predcup/looplag.py`, done): still to wire — `main.py` starts `run_probe()`, quoter and reconciliation loops call `record()` each iteration. Heavy work (scenario, district model, election-night projection, dashboard) runs in separate processes and hands results over via SQLite (CLAUDE.md "Process split")
 - [ ] 11. Offline test vs mock exchange with replayed Kalshi history
 - [ ] 12. Shadow mode on real platform (log-only)
 - [ ] 13. Live under the size ramp (`risk.size_ramp`: 10% launch fraction, ×2 per 45 clean reconciliations; mismatch/unexpected 4xx drops a step, 429s only on a burst of >5 in 10 min; step persisted, restart resumes one below; reset via `/resetramp` or `scripts/reset_ramp.py`), reconciliation every minute. Ramp logic done; still to wire: reconciliation loop → `record_reconciliation()`, `sig.py` 429s → `record_rate_limited()`, `main.py` builds `SizeRamp`, Telegram `/resetramp`
@@ -35,17 +36,17 @@ Launch-day plan (1 Oct): trade by hand at the open against Kalshi mispricings an
 - [ ] T2. `fairvalue.py` second source type `"ratings"`, read from hand-maintained `config/ratings.csv` (`race_key, source, rating, date`). Rating → probability mapping and per-rating uncertainty in `settings.yaml`. Own staleness rule based on the rating `date` (max age in config), not the 60 s outside-data rule.
 - [ ] T3. `config/ratings.csv` first fill (hand-maintained; no scraping of rating sites without checking ToS/robots.txt).
 - [ ] T4. Safe-seat module: flag markets priced well above their ratings-based probability → alert/dashboard for manual review. No automatic trading on a flagged market until I've reviewed it.
-- [ ] T5. Mid-October: district model (partisan lean + national environment + incumbency). National environment derived from Kalshi's House-control price and the Tier A races. Feeds Tier B fair values and `scenario.py` (step 15) for Phase 2.
+- [ ] T5. Mid-October: district model (partisan lean + national environment + incumbency). National environment derived from Kalshi's House-control price and the Tier A races. Feeds Tier B fair values and `scenario.py` (step 15) for Phase 2. Runs as a separate process; writes results to SQLite for the bot to read.
 
 ## Stage 3 — Mid October
-- [ ] 15. `scenario.py` correlated Monte Carlo; calibrate to Kalshi chamber-control prices; compare with platform
+- [ ] 15. `scenario.py` correlated Monte Carlo; calibrate to Kalshi chamber-control prices; compare with platform (separate process, results via SQLite)
 - [ ] 16. `strategies/scanner.py` consistency alerts using scenario model
 - [ ] 17. `news.py` RSS → LLM classification → quote-pull triggers + alerts
 
 ## Stage 4 — Late October (election night)
 - [ ] 18. `election_night/baselines.py` (MIT Election Lab county data, turnout, reporting order per state)
 - [ ] 19. `election_night/ingest.py` scrapers per target state (test on 2024 pages)
-- [ ] 20. `election_night/project.py` projection with vote-type adjustment
+- [ ] 20. `election_night/project.py` projection with vote-type adjustment (separate process, results via SQLite)
 - [ ] 21. Replay test on 2022/2024 results
 - [ ] 22. Confirm whether markets trade overnight on 3–4 Nov
 

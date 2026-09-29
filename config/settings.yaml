@@ -59,6 +59,14 @@ risk:
     rate_limit_max_in_window: 5
     rate_limit_window_seconds: 600
 
+# Trading loop must never block (CLAUDE.md "Process split"). Every loop
+# iteration's lateness, and a background event-loop probe, go to events_log
+# as loop_lag; lag above the threshold alerts (once per cooldown per loop).
+loop_lag:
+  alert_threshold_seconds: 1.0
+  alert_cooldown_seconds: 60
+  probe_interval_seconds: 0.5
+
 quoter:
   min_edge: 0.01 # half-spread floor
   uncertainty_coefficient: 1.0 # c: half-spread = max(min_edge, c * uncertainty)

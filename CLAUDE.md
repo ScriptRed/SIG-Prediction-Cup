@@ -71,6 +71,12 @@ predcup/
   tests/
 ```
 
+### Process split (the trading loop never blocks)
+
+- The trading process (`main.py`: venue I/O, fair value, quoter, risk, reconciliation, alerts) does only per-market arithmetic and async I/O on its event loop. No CPU-heavy work and no blocking calls in it.
+- Anything heavier runs in a **separate process** and hands results to the bot through SQLite (WAL mode): `scenario.py` Monte Carlo, the district model, `election_night/` projections, `dashboard/app.py`. They write result tables; the bot only does small indexed reads of the latest row, and treats a missing or stale result as "no data" (no trading off it), never waits for one.
+- `predcup/looplag.py` measures it: every periodic loop calls `LoopLagMonitor.record(loop, scheduled_at)` at the top of each iteration and `run_probe()` watches the event loop itself. All lag goes to `events_log` as `loop_lag`; lag > `loop_lag.alert_threshold_seconds` (1 s) alerts.
+
 ### Venue interface (`venues/base.py`)
 
 `get_markets()`, `get_book(market_id)`, `place_order(market_id, side, price, size)`, `cancel(order_id)`, `cancel_all()`, `get_positions()`, `get_balance()`. `sim/mock_exchange.py` implements the same interface; every strategy must run against it before going live.
