@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from _helpers import full_size_ramp
 from predcup.models import Fill
 from predcup.risk import RiskLimits, RiskManager, compute_markout
 from predcup.store import EventStore
@@ -47,6 +48,7 @@ def make_manager(sleep=no_sleep):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
         sleep=sleep,
     )
 

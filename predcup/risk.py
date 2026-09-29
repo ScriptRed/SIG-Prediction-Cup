@@ -5,8 +5,10 @@ code path may call a venue's place_order directly.
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from predcup.models import Fill, Order, OrderStatus
@@ -62,12 +64,16 @@ class SizeRampConfig:
     launch_fraction of their configured values and multiply by
     step_multiplier after every clean_reconciliations_per_step clean
     reconciliations in a row, capped at 1.0 (full configured size).
+    More than rate_limit_max_in_window 429s within
+    rate_limit_window_seconds count as one failure.
     launch_fraction = 1.0 disables the ramp.
     """
 
     launch_fraction: float
     step_multiplier: float
     clean_reconciliations_per_step: int
+    rate_limit_max_in_window: int
+    rate_limit_window_seconds: float
 
     def __post_init__(self) -> None:
         if not 0 < self.launch_fraction <= 1:
@@ -76,6 +82,10 @@ class SizeRampConfig:
             raise ValueError("size_ramp.step_multiplier must be > 1")
         if self.clean_reconciliations_per_step < 1:
             raise ValueError("size_ramp.clean_reconciliations_per_step must be >= 1")
+        if self.rate_limit_max_in_window < 1:
+            raise ValueError("size_ramp.rate_limit_max_in_window must be >= 1")
+        if self.rate_limit_window_seconds <= 0:
+            raise ValueError("size_ramp.rate_limit_window_seconds must be > 0")
 
 
 def load_size_ramp_config(config: dict) -> SizeRampConfig:
@@ -86,6 +96,8 @@ def load_size_ramp_config(config: dict) -> SizeRampConfig:
         launch_fraction=_require(section, "launch_fraction"),
         step_multiplier=_require(section, "step_multiplier"),
         clean_reconciliations_per_step=int(_require(section, "clean_reconciliations_per_step")),
+        rate_limit_max_in_window=int(_require(section, "rate_limit_max_in_window")),
+        rate_limit_window_seconds=_require(section, "rate_limit_window_seconds"),
     )
 
 
@@ -104,23 +116,39 @@ def max_ramp_step(config: SizeRampConfig) -> int:
     return step
 
 
-RAMP_FAILURE_KINDS = ("reconciliation_mismatch", "unexpected_4xx", "rate_limited")
+RAMP_FAILURE_KINDS = ("reconciliation_mismatch", "unexpected_4xx", "rate_limit_burst")
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class SizeRamp:
-    """Step state for the launch size ramp. Deliberately not restored from
-    events_log on restart: a restart starts again at launch_fraction, which
-    is the conservative choice when we don't know why the process died.
+    """Step state for the launch size ramp, persisted in SQLite on every
+    change. On construction it resumes one step below the saved step
+    (floor 0 = launch_fraction): we don't know why the process died, so we
+    don't trust the old level fully. That resumed step is saved at once,
+    so a crash loop walks the ramp down rather than holding it up.
     """
 
-    def __init__(self, config: SizeRampConfig, event_store: EventStore, alerter: Alerter) -> None:
+    def __init__(
+        self,
+        config: SizeRampConfig,
+        event_store: EventStore,
+        alerter: Alerter,
+        now: Callable[[], datetime] = _utc_now,
+    ) -> None:
         self._config = config
         self._event_store = event_store
         self._alerter = alerter
+        self._now = now
         self._max_step = max_ramp_step(config)
-        self.step = 0
+        self._rate_limit_times: deque[datetime] = deque()
+        saved = event_store.load_ramp_step()
+        self.step = 0 if saved is None else min(max(0, saved - 1), self._max_step)
         self.clean_count = 0
-        self._log("init")
+        event_store.save_ramp_step(self.step)
+        self._log("init", saved_step=saved)
 
     @property
     def multiplier(self) -> float:
@@ -138,6 +166,7 @@ class SizeRamp:
         if self.clean_count >= self._config.clean_reconciliations_per_step:
             self.step += 1
             self.clean_count = 0
+            self._event_store.save_ramp_step(self.step)
             self._log("step_up")
             self._alerter.send(
                 f"Size ramp stepped up to step {self.step}/{self._max_step} "
@@ -150,10 +179,46 @@ class SizeRamp:
         previous = self.step
         self.step = max(0, self.step - 1)
         self.clean_count = 0
+        self._event_store.save_ramp_step(self.step)
         self._log("step_down", failure_kind=kind, detail=detail, previous_step=previous)
         self._alerter.send(
             f"Size ramp: {kind} ({detail}). Step {previous} -> {self.step}/{self._max_step} "
             f"({self.multiplier:.0%} of configured size); clean count reset."
+        )
+
+    def record_rate_limited(self, detail: str) -> None:
+        """Every 429 lands here, including ones the adapter then retried
+        successfully. One 429 alerts but leaves step and clean count alone
+        (the adapter has already backed off its request rate); more than
+        rate_limit_max_in_window inside the window is a failure."""
+        now = self._now()
+        window_start = now - timedelta(seconds=self._config.rate_limit_window_seconds)
+        self._rate_limit_times.append(now)
+        while self._rate_limit_times and self._rate_limit_times[0] <= window_start:
+            self._rate_limit_times.popleft()
+        count = len(self._rate_limit_times)
+        self._log("rate_limited", detail=detail, rate_limits_in_window=count)
+        self._alerter.send(
+            f"Rate limited: {detail}. {count} 429(s) in the last "
+            f"{self._config.rate_limit_window_seconds:g}s "
+            f"(ramp drops above {self._config.rate_limit_max_in_window})."
+        )
+        if count > self._config.rate_limit_max_in_window:
+            self._rate_limit_times.clear()
+            self.record_failure(
+                "rate_limit_burst",
+                f"{count} 429s within {self._config.rate_limit_window_seconds:g}s; last: {detail}",
+            )
+
+    def reset(self, reason: str) -> None:
+        """Manual reset to launch_fraction (Telegram /resetramp)."""
+        previous = self.step
+        self.step = 0
+        self.clean_count = 0
+        self._event_store.save_ramp_step(0)
+        self._log("reset", detail=reason, previous_step=previous)
+        self._alerter.send(
+            f"Size ramp reset to launch size ({self.multiplier:.0%}) from step {previous}: {reason}"
         )
 
     def _log(self, action: str, **extra: object) -> None:
@@ -279,11 +344,15 @@ class RiskManager:
         venue: Venue,
         tournament_id: str,
         alerter: Alerter,
+        size_ramp: SizeRamp,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        size_ramp: SizeRamp | None = None,
     ) -> None:
         if not tournament_id:
             raise ValueError("tournament_id is required and cannot be blank")
+        # Fail closed: there is no "no ramp = full size" mode. Disabling
+        # the ramp is an explicit config change (launch_fraction: 1.0).
+        if size_ramp is None:
+            raise ValueError("size_ramp is required; RiskManager never runs without one")
         self._limits = limits
         self._bankroll = bankroll
         self._event_store = event_store
@@ -296,15 +365,10 @@ class RiskManager:
         self._halted_markets: set[str] = set()
         self._size_ramp = size_ramp
 
-    def _ramp_multiplier(self) -> float:
-        return self._size_ramp.multiplier if self._size_ramp is not None else 1.0
-
     def record_reconciliation(self, matched: bool, detail: str = "") -> None:
         """Feed each position reconciliation result to the size ramp. The
         cancel-all / halt on mismatch is the reconciliation loop's job;
         this only moves the ramp."""
-        if self._size_ramp is None:
-            return
         if matched:
             self._size_ramp.record_clean_reconciliation()
         else:
@@ -312,14 +376,12 @@ class RiskManager:
 
     def record_rate_limited(self, endpoint: str, retry_after_seconds: float | None = None) -> None:
         """The venue adapter calls this on every 429 it sees, including ones
-        it then retries transparently — a 429 means we're pushing the
-        (unpublished) limit, so the ramp backs off either way."""
-        if self._size_ramp is None:
-            return
+        it then retries successfully. The adapter backs off its own request
+        rate; the ramp only drops on a burst (SizeRamp.record_rate_limited)."""
         detail = f"429 on {endpoint}"
         if retry_after_seconds is not None:
             detail += f", Retry-After {retry_after_seconds:g}s"
-        self._size_ramp.record_failure("rate_limited", detail)
+        self._size_ramp.record_rate_limited(detail)
 
     def update_bankroll(self, bankroll: float) -> None:
         self._bankroll = bankroll
@@ -367,10 +429,9 @@ class RiskManager:
             f"Market {market_id} halted: unexpected {status_code} {error_code} "
             f"on order placement ({message}). No retry attempted."
         )
-        if self._size_ramp is not None:
-            self._size_ramp.record_failure(
-                "unexpected_4xx", f"{status_code} {error_code} on {market_id}"
-            )
+        self._size_ramp.record_failure(
+            "unexpected_4xx", f"{status_code} {error_code} on {market_id}"
+        )
 
     def check(self, order: Order, *, fair_value: float | None, outside_data_age_seconds: float) -> RiskDecision:
         decision = self._evaluate(order, fair_value=fair_value, outside_data_age_seconds=outside_data_age_seconds)
@@ -406,7 +467,7 @@ class RiskManager:
         order_notional = _order_notional(order)
         # The ramp scales only order size and the per-market cap; total and
         # party exposure caps are portfolio safety limits and stay as set.
-        ramp = self._ramp_multiplier()
+        ramp = self._size_ramp.multiplier
         ramp_note = f" (size ramp at {ramp:.0%})" if ramp < 1.0 else ""
 
         if order_notional > limits.max_order_size_susqies * ramp:

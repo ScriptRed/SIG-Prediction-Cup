@@ -1,5 +1,6 @@
 import pytest
 
+from _helpers import full_size_ramp
 from predcup.models import Order
 from predcup.risk import RiskLimits, RiskManager, load_risk_limits
 from predcup.store import EventStore
@@ -53,6 +54,7 @@ def manager(limits, tmp_path):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
 
 
@@ -78,6 +80,7 @@ def test_total_exposure_cap_spans_markets(limits, tmp_path):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
     # Two existing tracked orders in two different markets, each well under
     # the 500 per-market cap, but together near the 900 total cap.
@@ -113,6 +116,7 @@ def test_max_order_size_cap(tmp_path):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
     ok = make_order(quantity=400, price=0.5)  # notional 200
     assert manager.check(ok, fair_value=0.5, outside_data_age_seconds=0).approved

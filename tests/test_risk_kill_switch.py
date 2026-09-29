@@ -7,6 +7,7 @@ import asyncio
 
 import pytest
 
+from _helpers import full_size_ramp
 from predcup.models import Order
 from predcup.risk import RiskLimits, RiskManager
 from predcup.store import EventStore
@@ -59,6 +60,7 @@ def make_manager(venue, alerter=None, sleep=None):
         venue=venue,
         tournament_id=TOURNAMENT_ID,
         alerter=alerter or FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
     if sleep is not None:
         kwargs["sleep"] = sleep

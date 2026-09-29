@@ -12,6 +12,7 @@ predcup/risk.py's net_rd_exposure docstring for the reasoning.
 
 import pytest
 
+from _helpers import full_size_ramp
 from predcup.models import Order
 from predcup.risk import RiskLimits, RiskManager
 from predcup.store import EventStore
@@ -63,6 +64,7 @@ def manager(tmp_path):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
 
 

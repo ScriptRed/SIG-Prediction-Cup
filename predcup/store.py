@@ -30,6 +30,18 @@ class EventStore:
             )
             """
         )
+        # Single-row table: the size ramp's current step, so a restart can
+        # resume one step below it instead of jumping back to full size or
+        # all the way down to launch size (predcup.risk.SizeRamp).
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ramp_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                step INTEGER NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
         self._conn.commit()
 
     def log(self, event_type: str, payload: dict[str, Any]) -> None:
@@ -54,6 +66,18 @@ class EventStore:
             {"ts": ts, "event_type": et, "payload": json.loads(payload)}
             for ts, et, payload in rows
         ]
+
+    def save_ramp_step(self, step: int) -> None:
+        self._conn.execute(
+            "INSERT INTO ramp_state (id, step, updated_at) VALUES (1, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET step = excluded.step, updated_at = excluded.updated_at",
+            (step, datetime.now(timezone.utc).isoformat()),
+        )
+        self._conn.commit()
+
+    def load_ramp_step(self) -> int | None:
+        row = self._conn.execute("SELECT step FROM ramp_state WHERE id = 1").fetchone()
+        return None if row is None else int(row[0])
 
     def close(self) -> None:
         self._conn.close()

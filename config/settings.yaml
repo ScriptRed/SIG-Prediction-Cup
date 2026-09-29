@@ -9,6 +9,9 @@ platform:
   tournament_slug: null
   tournament_id: null
 
+storage:
+  db_path: "data/predcup.db" # SQLite, WAL mode; git-ignored (*.db)
+
 kill_switch:
   file_path: "KILL" # repo root; presence halts all quoting and cancels orders
   telegram_kill_command: "/kill"
@@ -41,15 +44,20 @@ risk:
   reconciliation_interval_seconds: 60 # compare local positions vs get_positions() every minute
   # Launch size ramp: max_order_size_susqies and max_bankroll_fraction_per_market
   # start at launch_fraction of the values above and multiply by step_multiplier
-  # after clean_reconciliations_per_step clean reconciliations in a row (no
-  # mismatch, unexpected 4xx or 429 since the last step). Any failure drops one
-  # step and alerts. 0.1 -> 0.2 -> 0.4 -> 0.8 -> 1.0; at 60 s reconciliation,
-  # 120 per step = 2 h per step, ~8 h clean to full size. Restart = back to step 0.
-  # launch_fraction: 1.0 disables the ramp.
+  # after clean_reconciliations_per_step clean reconciliations in a row. A
+  # reconciliation mismatch or unexpected 4xx drops one step and alerts. Each 429
+  # alerts (the adapter backs off its request rate) but only drops a step when
+  # more than rate_limit_max_in_window arrive within rate_limit_window_seconds.
+  # 0.1 -> 0.2 -> 0.4 -> 0.8 -> 1.0; at 60 s reconciliation, 45 per step =
+  # 45 min per step, ~3 h clean to full size. Step is saved in SQLite; a restart
+  # resumes one step below the saved one. Reset: Telegram /resetramp (running)
+  # or `python -m scripts.reset_ramp` (stopped). launch_fraction: 1.0 disables.
   size_ramp:
     launch_fraction: 0.10
     step_multiplier: 2.0
-    clean_reconciliations_per_step: 120
+    clean_reconciliations_per_step: 45
+    rate_limit_max_in_window: 5
+    rate_limit_window_seconds: 600
 
 quoter:
   min_edge: 0.01 # half-spread floor

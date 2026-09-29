@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from _helpers import full_size_ramp
 from predcup.models import Order, OrderStatus
 from predcup.risk import RiskLimits, RiskManager, is_exposure_counted
 from predcup.store import EventStore
@@ -63,6 +64,7 @@ def manager(tmp_path):
         venue=MockExchange(),
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
     )
 
 
