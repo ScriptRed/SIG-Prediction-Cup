@@ -121,14 +121,23 @@ def test_live_cancels_then_places_one_batch(tmp_path):
     assert len(store.all_events("order")) == 2
 
 
-def test_live_requote_cancels_previous_quotes_and_frees_their_exposure(tmp_path):
+def test_swept_quotes_stay_counted_until_reconciliation_releases_them(tmp_path):
+    # A swept quote may have filled just before the sweep; its exposure only
+    # moves into positions at the next clean reconciliation.
     spy = SpyVenue()
     router, _, _, _, _, risk = make(tmp_path, venue=spy)
     run(router.replace_all([(order("a"), FV)], NOW))
     run(router.replace_all([(order("b"), FV)], NOW))
     assert len(run(spy.get_open_orders(TID))) == 1
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
-    assert statuses == {"a": OrderStatus.CANCELLED, "b": OrderStatus.OPEN}
+    assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.OPEN}
+    snapshot = router.swept_snapshot()
+    assert snapshot == ["a"]
+    run(router.replace_all([(order("c"), FV)], NOW))  # sweeps b after the snapshot
+    router.release_swept(snapshot)
+    statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
+    assert statuses == {"a": OrderStatus.CANCELLED, "b": OrderStatus.OPEN, "c": OrderStatus.OPEN}
+    assert router.swept_snapshot() == ["b"]
 
 
 def test_more_than_50_orders_are_split_into_batches(tmp_path):

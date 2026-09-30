@@ -139,3 +139,44 @@ def test_get_balance_and_get_markets_require_tournament_id():
     for name in ("get_balance", "get_markets"):
         sig = inspect.signature(getattr(MockExchange, name))
         assert sig.parameters["tournament_id"].default is inspect.Parameter.empty
+
+
+# --- fills, for reconciliation and the multi-hour mock run ---------------------
+
+
+def test_simulate_fill_updates_positions_fills_and_order():
+    exchange = MockExchange()
+    placed = run(exchange.place_order(make_order(side="yes", action="buy", quantity=10)))
+    run(exchange.simulate_fill(placed.id, 4))
+    [pos] = run(exchange.get_positions(TOURNAMENT_A))
+    assert pos.quantity == 4
+    fills = run(exchange.get_new_fills(TOURNAMENT_A, known_ids=set()))
+    assert [(f.side, f.action, f.quantity) for f in fills] == [("yes", "buy", 4)]
+    assert run(exchange.get_new_fills(TOURNAMENT_A, known_ids={fills[0].id})) == []
+    [still_open] = run(exchange.get_open_orders(TOURNAMENT_A))
+    assert still_open.quantity == 6
+
+
+def test_sell_yes_fill_reports_as_no_side_and_nets():
+    exchange = MockExchange()
+    b = run(exchange.place_order(make_order(side="yes", action="buy", quantity=10, idempotency_key="b")))
+    s = run(exchange.place_order(make_order(side="yes", action="sell", quantity=4, idempotency_key="s")))
+    run(exchange.simulate_fill(b.id, 10))
+    run(exchange.simulate_fill(s.id, 4))
+    [pos] = run(exchange.get_positions(TOURNAMENT_A))
+    assert pos.quantity == 6
+    fills = run(exchange.get_new_fills(TOURNAMENT_A, known_ids=set()))
+    assert [(f.side, f.quantity) for f in fills] == [("yes", 10), ("no", 4)]
+
+
+def test_full_fill_removes_order():
+    exchange = MockExchange()
+    placed = run(exchange.place_order(make_order(quantity=5)))
+    run(exchange.simulate_fill(placed.id, 5))
+    assert run(exchange.get_open_orders(TOURNAMENT_A)) == []
+
+
+def test_top_of_books_from_configured_books():
+    exchange = MockExchange()
+    exchange.set_top_of_book("36", 0.4, 0.45)
+    assert run(exchange.get_top_of_books(["36", "37"], TOURNAMENT_A)) == {"36": (0.4, 0.45), "37": (None, None)}

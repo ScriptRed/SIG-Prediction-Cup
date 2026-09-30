@@ -60,6 +60,7 @@ class OrderRouter:
         self._alerter = alerter
         self._control = control
         self._live_keys: list[str] = []  # risk tracking keys of our resting quotes
+        self._swept_keys: list[str] = []  # cancelled by cancel-all, not yet reconciled
         self._blocked = ""
 
     @property
@@ -76,6 +77,18 @@ class OrderRouter:
         if self._blocked:
             self._store.log("router_unblocked", {"was": self._blocked, "reason": reason})
         self._blocked = ""
+
+    def swept_snapshot(self) -> list[str]:
+        """Keys swept so far; the reconciler takes this BEFORE syncing fills."""
+        return list(self._swept_keys)
+
+    def release_swept(self, keys: list[str]) -> None:
+        """After a clean reconciliation (fills now in positions), stop counting
+        the quotes that were swept before it started."""
+        done = set(keys)
+        for key in keys:
+            self._risk.confirm_order_state(key, OrderStatus.CANCELLED)
+        self._swept_keys = [k for k in self._swept_keys if k not in done]
 
     def _block(self, reason: str) -> None:
         self._blocked = reason
@@ -121,8 +134,9 @@ class OrderRouter:
             self._store.log("cancel_all_incomplete", {"remaining_order_ids": ids})
             self._alerter.send(msg)
             return RouterResult(blocked=msg)
-        for key in self._live_keys:
-            self._risk.confirm_order_state(key, OrderStatus.CANCELLED)
+        # Swept quotes keep counting (they may have filled first) until a
+        # clean reconciliation has moved any fills into positions.
+        self._swept_keys += self._live_keys
         self._live_keys = []
 
         # 2. Risk-check and record each new order before it is sent, so

@@ -4,7 +4,9 @@ Every strategy must run against this before going live (CLAUDE.md). It
 models the SIG platform's tournament isolation (separate order books and
 balances per tournament_id) but is deliberately simple: no price-time
 matching engine, no FIFO lot tracking — orders rest until explicitly
-cancelled or filled via `simulate_fill`.
+cancelled or filled via `simulate_fill`. Fills are reported the way
+SigVenue.get_new_fills reports them: side = the direction the YES position
+moved (a YES sell shows as a NO-side fill), action "buy".
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 import itertools
 from datetime import datetime, timezone
 
-from predcup.models import Market, Order, OrderBook, OrderStatus, Position
+from predcup.models import Fill, Market, Order, OrderBook, OrderStatus, Position
 from predcup.venues.base import CancelAllResult, Venue
 
 
@@ -36,6 +38,9 @@ class MockExchange(Venue):
         # cancelled while actually leaving it open (simulating a venue-side
         # silent miss). float("inf") means miss on every call indefinitely.
         self._cancel_all_miss_counts: dict[str, float] = {}
+        self._fills: dict[str, list[Fill]] = {}  # tournament_id -> fills, oldest first
+        self._fill_ids = itertools.count(1)
+        self._tops: dict[str, tuple[float | None, float | None]] = {}
 
     def configure_cancel_all_to_silently_miss(
         self, order_ids: set[str], times: float = float("inf")
@@ -109,3 +114,46 @@ class MockExchange(Venue):
 
     async def get_balance(self, tournament_id: str) -> float:
         return self._balances.get(tournament_id, self._starting_balance)
+
+    # --- simulation helpers (tests, multi-hour mock run) -----------------------
+
+    def set_top_of_book(self, exchange_id: str, bid: float | None, ask: float | None) -> None:
+        self._tops[exchange_id] = (bid, ask)
+
+    async def get_top_of_books(
+        self, exchange_ids: list[str], tournament_id: str
+    ) -> dict[str, tuple[float | None, float | None]]:
+        return {e: self._tops.get(e, (None, None)) for e in exchange_ids}
+
+    async def simulate_fill(self, order_id: str, quantity: int, tournament_id: str | None = None) -> Fill:
+        """Fill `quantity` of a resting order at its limit price."""
+        tids = [tournament_id] if tournament_id else list(self._open_orders)
+        for tid in tids:
+            orders = self._orders_for(tid)
+            if order_id in orders:
+                break
+        else:
+            raise KeyError(f"no open order {order_id}")
+        order = orders[order_id]
+        qty = min(quantity, order.quantity)
+        towards_yes = (order.side == "yes") == (order.action == "buy")
+        yes_price = order.price if order.side == "yes" else 1 - (order.price or 0)
+        fill = Fill(id=str(next(self._fill_ids)), order_id=order_id, exchange_id=order.exchange_id, tournament_id=tid,
+                    side="yes" if towards_yes else "no", action="buy", quantity=qty, price=yes_price or 0.0,
+                    filled_at=datetime.now(timezone.utc))  # fmt: skip
+        self._fills.setdefault(tid, []).append(fill)
+        positions = self._positions.setdefault(tid, {})
+        signed = qty if towards_yes else -qty
+        prev = positions.get(order.exchange_id)
+        new_qty = (prev.quantity if prev else 0) + signed
+        positions[order.exchange_id] = Position(exchange_id=order.exchange_id, market_id=order.market_id or "",
+                                                tournament_id=tid, quantity=new_qty, avg_cost=yes_price or 0.0,
+                                                current_price=yes_price)  # fmt: skip
+        if qty >= order.quantity:
+            del orders[order_id]
+        else:
+            orders[order_id] = order.model_copy(update={"quantity": order.quantity - qty})
+        return fill
+
+    async def get_new_fills(self, tournament_id: str, known_ids: set[str]) -> list[Fill]:
+        return [f for f in self._fills.get(tournament_id, []) if f.id not in known_ids]

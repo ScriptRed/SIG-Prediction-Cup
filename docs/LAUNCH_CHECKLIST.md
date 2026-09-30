@@ -72,7 +72,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 1. [ ] Books at open: are they seeded by SIG market makers? Note typical spreads and depth in headline vs niche markets
 2. [ ] Manual opening trades on obvious mispricings (also secures rank eligibility: ≥1 trade)
 3. [ ] Bot in **shadow mode for ~1 hour**: compare intended quotes with the live books; any quote far from market = investigate before going live
-4. [ ] Switch to live: **3–5 well-mapped markets, small size**
+4. [ ] Switch to live: **3–5 well-mapped markets, small size**. Before this: no manual resting orders, since the bot's re-quote is a tournament-wide cancel-all and would cancel them (or change the router to per-exchange scope first)
 5. [ ] First reconciliation passes cleanly (local positions = `/tournaments/{slug}/portfolio/positions`)
 6. [ ] Scale up only after several clean reconciliations and non-negative markouts
 
@@ -94,6 +94,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 | Which relationships exist between Cup markets | `GET /relationships` and `/relationships/graph` | |
 | Violations feed useful / how fast competed away | Subscribe to `relationships:violations:{tournamentId}` | |
 | Smart score | `GET /tournaments/{slug}/me/smart-score` | |
+| Fill sign convention: does a conventional closing sell of YES show as a negative-quantity fill? | After the first manual close, compare `GET /tournaments/{slug}/portfolio/fills` with the position change; reconciliation halts if our reading is wrong | |
 | Do SIG seed quotes follow Kalshi moves? | Log SIG mid vs Kalshi mid over time for a few races and measure the lag | |
 | Markouts at 1 / 5 / 30 min | From `events_log` after first fills | |
 | Fill rate per market (headline vs niche) | From `events_log` | |

@@ -27,6 +27,7 @@ from predcup.control import TradingControl
 from predcup.fairvalue import FairValueTracker, KalshiQuote, kalshi_fair_value, load_fair_value_config
 from predcup.looplag import LoopLagMonitor, load_loop_lag_config
 from predcup.orders import OrderRouter
+from predcup.reconcile import Reconciler
 from predcup.risk import Alerter, RiskManager, SizeRamp, load_risk_limits, load_size_ramp_config
 from predcup.store import EventStore
 from predcup.strategies.quoter import QuoteTarget, Quoter, load_quoter_config
@@ -81,6 +82,7 @@ class App:
         tournament_id: str,
         bankroll: float,
         targets: list[MappedTarget],
+        market_meta: dict[str, tuple[str, str | None, str | None]],  # exchange_id -> (market_id, party, race_key)
         fusion_race_keys: frozenset[str],
         shadow: bool = True,
         live_allowed: bool = LIVE_ENABLED,
@@ -115,6 +117,11 @@ class App:
             positions=lambda: store.local_positions(tournament_id),
             books=lambda ids: venue.get_top_of_books(ids, tournament_id),
             cfg=self.quoter_cfg, tournament_id=tournament_id, control=self.control,
+        )  # fmt: skip
+        self.reconciler = Reconciler(
+            venue=venue, store=store, risk=self.risk, router=self.router, control=self.control, alerter=alerter,
+            tournament_id=tournament_id, market_meta=market_meta, shadow=shadow,
+            max_read_failures=int(settings["risk"]["reconciliation_max_read_failures"]),
         )  # fmt: skip
         self.looplag = LoopLagMonitor(load_loop_lag_config(settings), store, alerter, clock=mono)
         self._quotes: dict[str, KalshiQuote] = {}
@@ -159,6 +166,9 @@ class App:
         self.refresh_fair_values()
         await self.quoter.cycle([t.target for t in self.targets], self.clock())
 
+    async def reconcile_once(self) -> None:
+        await self.reconciler.run_once()
+
     async def handle_halt_once(self) -> None:
         if not self.control.halted or self._halt_handled:
             return
@@ -198,6 +208,8 @@ class App:
                                                self.poll_kalshi_once)),  # fmt: skip
             asyncio.create_task(self._periodic("quoter", float(self.settings["quoter"]["cycle_interval_seconds"]),
                                                self.quote_once)),  # fmt: skip
+            asyncio.create_task(self._periodic("reconciliation", float(self.settings["risk"]["reconciliation_interval_seconds"]),
+                                               self.reconcile_once)),  # fmt: skip
             asyncio.create_task(self.looplag.run_probe()),
             asyncio.create_task(self._halt_watcher()),
         ] + [asyncio.create_task(f()) for f in self._extra_tasks]

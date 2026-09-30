@@ -389,3 +389,31 @@ def test_get_top_of_books_bulk_read_chunks_at_100():
     assert [len(p["ids"].split(",")) for p in params] == [100, 50]
     assert all(p["tournamentId"] == TID for p in params)
     assert out["149"] == (0.4, None) and len(out) == 150
+
+
+# --- fills (reconciliation input) ---------------------------------------------
+
+
+def _fill(i, qty, side=None, price=0.5):
+    return {"id": i, "orderId": 100 + i, "exchangeId": "1077", "marketId": "388", "price": price,
+            "quantity": qty, "side": side or ("yes" if qty > 0 else "no"), "filledAt": "2026-10-01T17:00:00Z"}  # fmt: skip
+
+
+def test_get_new_fills_pages_until_a_known_fill_and_returns_oldest_first():
+    page1 = {"data": [_fill(5, 10), _fill(4, -3)], "pagination": {"limit": 200, "hasMore": True, "nextCursor": "c"}}
+    page2 = {"data": [_fill(3, 7), _fill(2, 1)], "pagination": {"limit": 200, "hasMore": True, "nextCursor": "d"}}
+    rec = Recorder([(200, page1, None), (200, page2, None)])
+    venue, _ = make_venue(rec)
+    fills = run(venue.get_new_fills(TID, known_ids={"2", "1"}))
+    assert rec.requests[0].url.path == f"/api/v1/tournaments/{SLUG}/portfolio/fills"
+    assert len(rec.requests) == 2  # stopped at the page holding known fill 2
+    assert [f.id for f in fills] == ["3", "4", "5"]
+    # Outcome-signed quantity -> signed YES-position change (TODO(api) reading).
+    assert [(f.side, f.action, f.quantity) for f in fills] == [("yes", "buy", 7), ("no", "buy", 3), ("yes", "buy", 10)]
+
+
+def test_get_new_fills_refuses_fractional_quantity():
+    rec = Recorder([(200, {"data": [_fill(1, 2.5)], "pagination": {"limit": 200, "hasMore": False, "nextCursor": None}}, None)])
+    venue, _ = make_venue(rec)
+    with pytest.raises(ValueError, match="fractional"):
+        run(venue.get_new_fills(TID, known_ids=set()))

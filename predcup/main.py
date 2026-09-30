@@ -86,6 +86,7 @@ async def amain(duration: float | None) -> int:
 
         app = App(settings=settings, venue=venue, kalshi=kalshi, store=store, alerter=alerter,
                   tournament_id=tid, bankroll=bankroll, targets=targets,
+                  market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in cup_rows},
                   fusion_race_keys=fusion_race_keys(cup_rows, map_rows), shadow=True)  # fmt: skip
         relay.target = app.risk.record_rate_limited
 

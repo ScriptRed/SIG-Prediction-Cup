@@ -22,7 +22,7 @@ SETTINGS = {
         "max_bankroll_fraction_per_market": 0.05, "max_total_exposure_fraction": 0.6,
         "max_party_exposure_fraction": 0.25, "max_order_size_susqies": 500,
         "max_price_deviation_from_fair_value": 0.03, "daily_loss_stop_fraction": 0.08,
-        "stale_data_stop_seconds": 60, "reconciliation_interval_seconds": 60,
+        "stale_data_stop_seconds": 60, "reconciliation_interval_seconds": 60, "reconciliation_max_read_failures": 3,
         "size_ramp": {"launch_fraction": 0.1, "step_multiplier": 2.0, "clean_reconciliations_per_step": 45,
                       "rate_limit_max_in_window": 5, "rate_limit_window_seconds": 600},
     },
@@ -91,7 +91,8 @@ def make_app(tmp_path, *, shadow=True, live_allowed=False, venue=None, kalshi=No
     return App(
         settings=SETTINGS, venue=venue or BookVenue(), kalshi=kalshi or FakeKalshi(), store=store,
         alerter=Alerts(), tournament_id=TID, bankroll=100_000.0,
-        targets=load_targets(CUP, MAP), fusion_race_keys=frozenset(), shadow=shadow,
+        targets=load_targets(CUP, MAP), market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in CUP},
+        fusion_race_keys=frozenset(), shadow=shadow,
         live_allowed=live_allowed, clock=clock or (lambda: NOW),
     ), store  # fmt: skip
 
@@ -173,5 +174,19 @@ def test_run_for_a_short_while_records_loop_lag(tmp_path):
     app, store = make_app(tmp_path, clock=lambda: datetime.now(timezone.utc))
     run(app.run(duration_seconds=0.3))
     loops = {e["payload"]["loop"] for e in store.all_events("loop_lag")}
-    assert {"quoter", "kalshi_poll", "event_loop"} <= loops
+    assert {"quoter", "kalshi_poll", "reconciliation", "event_loop"} <= loops
+    assert store.all_events("reconciliation")[0]["payload"]["status"] == "clean"
     assert store.all_events("shadow_quote")
+
+
+def test_live_fill_flows_through_reconciliation_into_risk(tmp_path):
+    venue = BookVenue()
+    app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    run(app.poll_kalshi_once())
+    run(app.quote_once())
+    [bid, ask] = sorted(run(venue.get_open_orders(TID)), key=lambda o: o.action)
+    run(venue.simulate_fill(bid.id, 20))
+    run(app.reconcile_once())
+    assert store.local_positions(TID) == {"1068": 20}
+    assert store.all_events("reconciliation")[-1]["payload"]["status"] == "clean"
+    assert app.risk._positions[0].quantity == 20 and app.risk._positions[0].race_key == "MA-Senate"

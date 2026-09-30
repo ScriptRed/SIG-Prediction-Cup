@@ -334,6 +334,39 @@ def net_rd_exposure(orders: list[Order], fusion_race_keys: frozenset[str]) -> fl
     return net
 
 
+@dataclass(frozen=True)
+class PositionExposure:
+    """A venue position as risk sees it (fed by the reconciliation loop).
+    quantity: + YES shares / - NO shares; price: YES valuation price."""
+
+    market_id: str
+    party_id: str | None
+    race_key: str | None
+    quantity: float
+    price: float
+
+    @property
+    def notional(self) -> float:
+        return self.quantity * self.price if self.quantity >= 0 else -self.quantity * (1 - self.price)
+
+    @property
+    def is_long(self) -> bool:
+        """Long this market's own outcome (its party, for an election market)."""
+        return self.quantity > 0
+
+
+def net_rd_positions(positions: list[PositionExposure], fusion_race_keys: frozenset[str]) -> float:
+    """Positions' contribution to net_rd_exposure (same sign convention and
+    the same fusion/Independent exclusions)."""
+    net = 0.0
+    for p in positions:
+        if p.party_id not in _RD_PARTIES or p.race_key in fusion_race_keys:
+            continue
+        signed = p.notional * (1 if p.is_long else -1)
+        net += signed if p.party_id == "R" else -signed
+    return net
+
+
 def compute_markout(fill: Fill, later_price: float) -> float:
     """Markout in probability points, positive = the fill looks good so
     far. Assumes fill.price is already YES-normalized, per CLAUDE.md's
@@ -380,6 +413,10 @@ class RiskManager:
         self._orders: dict[str, Order] = {}
         self._halted_markets: set[str] = set()
         self._size_ramp = size_ramp
+        # Venue positions, fed by reconciliation. Until the first feed,
+        # fully-filled orders stand in for the positions they created.
+        self._positions: list[PositionExposure] = []
+        self._positions_known = False
 
     def record_reconciliation(self, matched: bool, detail: str = "") -> None:
         """Feed each position reconciliation result to the size ramp. The
@@ -417,6 +454,19 @@ class RiskManager:
 
     def _tracked_orders(self) -> list[Order]:
         return list(self._orders.values())
+
+    def update_positions(self, positions: list[PositionExposure]) -> None:
+        """Replace the position snapshot (reconciliation loop, after a clean
+        comparison). From now on fully-filled orders stop counting: their
+        exposure is in the positions."""
+        self._positions = list(positions)
+        self._positions_known = True
+
+    def _exposure_orders(self) -> list[Order]:
+        orders = self._tracked_orders()
+        if self._positions_known:
+            orders = [o for o in orders if o.status != OrderStatus.FILLED]
+        return orders
 
     def is_market_halted(self, market_id: str) -> bool:
         return market_id in self._halted_markets
@@ -493,10 +543,12 @@ class RiskManager:
             if abs(order.price - fair_value) > limits.max_price_deviation_from_fair_value:
                 return RiskDecision(False, "price deviates too far from fair value")
 
-        tracked = self._tracked_orders()
+        tracked = self._exposure_orders()
+        positions = self._positions
+        market_positions = sum(p.notional for p in positions if p.market_id == order.market_id)
 
         market_cap = limits.max_bankroll_fraction_per_market * self._bankroll * ramp
-        if _market_notional(tracked, order.market_id) + order_notional > market_cap:
+        if _market_notional(tracked, order.market_id) + market_positions + order_notional > market_cap:
             return RiskDecision(False, "exceeds per-market bankroll cap" + ramp_note)
 
         if order.party_id in _RD_PARTIES and not order.race_key:
@@ -505,14 +557,14 @@ class RiskManager:
         if order.party_id in _RD_PARTIES and order.race_key not in self._fusion_race_keys:
             party_cap = limits.max_party_exposure_fraction * self._bankroll
             order_signed = order_notional * (1 if _is_long(order.side, order.action) else -1)
-            new_net = net_rd_exposure(tracked, self._fusion_race_keys) + (
+            new_net = net_rd_exposure(tracked, self._fusion_race_keys) + net_rd_positions(positions, self._fusion_race_keys) + (
                 order_signed if order.party_id == "R" else -order_signed
             )
             if abs(new_net) > party_cap:
                 return RiskDecision(False, "exceeds net R-vs-D party-exposure cap")
 
         total_cap = limits.max_total_exposure_fraction * self._bankroll
-        if _total_notional(tracked) + order_notional > total_cap:
+        if _total_notional(tracked) + sum(p.notional for p in positions) + order_notional > total_cap:
             return RiskDecision(False, "exceeds total exposure cap")
 
         return RiskDecision(True)

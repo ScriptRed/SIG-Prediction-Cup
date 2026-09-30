@@ -35,6 +35,7 @@ from predcup.models import (
     MAX_PRICE,
     MIN_PRICE,
     TICK,
+    Fill,
     Market,
     Order,
     OrderBook,
@@ -408,6 +409,48 @@ class SigVenue(Venue):
                      quantity=p["quantity"], avg_cost=p["avgCost"], current_price=p.get("currentPrice"))  # fmt: skip
             for p in data.get("positions") or []
         ]
+
+    async def get_new_fills(self, tournament_id: str, known_ids: set[str]) -> list[Fill]:
+        """Fills not yet in `known_ids`, oldest first, from
+        /tournaments/{slug}/portfolio/fills (newest first, paginated; stops at
+        the first page holding a known fill). Includes manual trades on the
+        account, which is what local positions must reflect.
+
+        TODO(api): the spec's Fill has no `action`; `quantity` is
+        "outcome-signed; negative values indicate the NO side". Read here as
+        the signed change in the YES position (+ towards YES, - towards NO)
+        and stored as a buy of that side. If a conventional closing sell is
+        reported differently, reconciliation will show a mismatch and halt
+        (fail closed); confirm against the first real fills."""
+        tid = await self._check(tournament_id)
+        new: list[Fill] = []
+        cursor = None
+        while True:
+            params: dict[str, Any] = {"limit": 200}
+            if cursor:
+                params["cursor"] = cursor
+            data = await self._get(f"/tournaments/{self._slug}/portfolio/fills", params)
+            page = data.get("data") or []
+            hit_known = False
+            for f in page:
+                fid = str(f["id"])
+                if fid in known_ids:
+                    hit_known = True
+                    continue
+                qty = float(f["quantity"])
+                if qty != int(qty):
+                    raise ValueError(f"fill {fid} has fractional quantity {qty}")
+                if qty == 0:
+                    continue
+                new.append(Fill(
+                    id=fid, order_id=str(f.get("orderId") or ""), exchange_id=str(f["exchangeId"]),
+                    tournament_id=tid, side="yes" if qty > 0 else "no", action="buy",
+                    quantity=int(abs(qty)), price=float(f["price"]) if f.get("price") is not None else 0.0,
+                    filled_at=f["filledAt"],
+                ))  # fmt: skip
+            if hit_known or not data["pagination"]["hasMore"]:
+                return list(reversed(new))
+            cursor = data["pagination"]["nextCursor"]
 
     async def get_balance(self, tournament_id: str) -> float:
         await self._check(tournament_id)

@@ -7,9 +7,9 @@
 - [x] LAUNCH_CHECKLIST §D: SIG seed quotes vs Kalshi moves
 - [x] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()` (orders tested against a mock transport only; reads checked live)
 - [x] `fairvalue.py` v1 (Kalshi mid, verified Tier A only). Nothing is verified yet, so no market has a fair value until rows are marked with `show_mapping --mark-verified`
-- [x] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry) + `orders.py` router (the only order path; shadow mode) + `control.py` halt. Known gap for step 8: `risk.py` counts exposure from orders only, so a quote that fills and is later swept by cancel-all drops out of exposure; reconciliation must feed positions back into risk before going live
+- [x] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry) + `orders.py` router (the only order path; shadow mode) + `control.py` halt. Exposure gap closed in step 8: positions now count in risk, and swept quotes keep counting until a clean reconciliation
 - [x] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram): `python -m predcup.main`. Live mode refused in code (`predcup.app.LIVE_ENABLED = False`). Safety-branch hooks: `App.request_kill(reason)`, `App.reset_ramp(reason)`, injected `alerter`, `App.add_task(factory)`
-- [ ] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`)
+- [x] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`): syncs fills first (manual trades included), feeds positions into risk exposure, releases swept quotes; mismatch halts (live) or alerts (shadow). Fill sign convention is a `TODO(api)` reading, fail-closed; confirm on the first real fill
 - [ ] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py` — built in a separate session
 - [ ] Multi-hour run against the mock exchange
 
