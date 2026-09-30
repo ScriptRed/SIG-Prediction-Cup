@@ -26,6 +26,7 @@ venues:
   sig:
     # realtime token lasts 3h (docs/platform/SUMMARY.md); refresh with margin
     realtime_token_refresh_margin_seconds: 600
+    request_delay_seconds: 0.1 # pause after every read in scripts; rate limits are not in the spec
 
 fair_value:
   # blend Kalshi + Polymarket in log-odds space, liquidity-weighted
@@ -82,6 +83,15 @@ mapping_review:
   max_mid_diff: 0.10 # SIG vs Kalshi mid after polarity; bigger suggests an inverted/wrong mapping
   max_kalshi_spread: 0.05
   min_kalshi_volume: 1000 # lifetime contracts; below this the Kalshi price is not much of an anchor
+
+# scripts/launch_report.py: which mapped markets look safe to launch on.
+launch_report:
+  max_gap: 0.03 # flag SIG mid vs polarity-adjusted Kalshi mid beyond this
+  longshot_below: 0.10 # longshot-overpricing column only where Kalshi is under this
+  exclude_states: [AK, GA, ME] # hand-picked exclusions for launch
+  exclude_independent: true # every Independent market is excluded
+  output_path: "data/launch_report.csv"
+  # low Kalshi volume uses mapping_review.min_kalshi_volume
 
 alerts:
   gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert

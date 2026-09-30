@@ -97,6 +97,29 @@ def kalshi_mid_in_sig_terms(kalshi: KalshiMarket, polarity: str) -> float | None
     return None
 
 
+def not_2026_reasons(kalshi: KalshiMarket, event: KalshiEvent | None) -> list[str]:
+    """Why this Kalshi market may not be the 2026 contest (empty if fine).
+    Only titles/tickers are scanned for years: rules text legitimately
+    mentions e.g. a January 2027 swearing-in."""
+    names = [kalshi.ticker, kalshi.event_ticker, kalshi.title, kalshi.subtitle, kalshi.yes_sub_title]
+    if event:
+        names += [event.series_ticker, event.title, event.sub_title]
+    reasons = []
+    other_years = sorted({y for y in _YEAR_RE.findall(" ".join(names)) if y != CUP_YEAR})
+    if other_years:
+        reasons.append(f"title/ticker mentions year(s) {', '.join(other_years)}, not {CUP_YEAR}")
+    # Ticker year segment, e.g. GOVPARTYNH-28 (an event ticker's second part).
+    parts = kalshi.event_ticker.split("-")
+    if len(parts) > 1 and parts[1][:2].isdigit() and parts[1][:2] != CUP_YEAR[2:] and parts[1][:4] != CUP_YEAR:
+        reasons.append(f"event ticker {kalshi.event_ticker} is not a {CUP_YEAR} event")
+    # January 2027 is allowed: certification can push expected expiry past
+    # year end.
+    expiry = kalshi.expected_expiration_time or kalshi.close_time
+    if expiry and not expiry.startswith(CUP_YEAR) and not expiry.startswith("2027-01"):
+        reasons.append(f"expected expiration {expiry} is outside the {CUP_YEAR} cycle")
+    return reasons
+
+
 def review_warnings(
     *,
     sig_state: str,
@@ -139,16 +162,7 @@ def review_warnings(
         elif title_state != sig_state:
             warnings.append(f"STATE MISMATCH: Kalshi event title {title!r} is {title_state}, SIG race is {sig_state}")
 
-    # Not the 2026 contest. Only titles/tickers are scanned for years: rules
-    # text legitimately mentions e.g. a January 2027 swearing-in.
-    other_years = sorted({y for y in _YEAR_RE.findall(" ".join(names)) if y != CUP_YEAR})
-    if other_years:
-        warnings.append(f"title/ticker mentions year(s) {', '.join(other_years)}, not {CUP_YEAR}")
-    # January 2027 is allowed: certification can push expected expiry past
-    # year end.
-    expiry = kalshi.expected_expiration_time or kalshi.close_time
-    if expiry and not expiry.startswith(CUP_YEAR) and not expiry.startswith("2027-01"):
-        warnings.append(f"expected expiration {expiry} is outside the {CUP_YEAR} cycle")
+    warnings += not_2026_reasons(kalshi, event)
 
     # Price disagreement after applying polarity.
     k_mid = kalshi_mid_in_sig_terms(kalshi, polarity)

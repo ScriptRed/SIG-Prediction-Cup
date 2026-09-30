@@ -63,15 +63,21 @@ _NON_TEXT_KEYS = {"settlementDate", "settledWith", "settledOn"}
 class SigReadOnly:
     """GET-only reads of the Cup. Every call passes tournamentId."""
 
-    def __init__(self, client: httpx.AsyncClient, base_url: str, api_key: str) -> None:
+    def __init__(
+        self, client: httpx.AsyncClient, base_url: str, api_key: str, request_delay_seconds: float = 0.0
+    ) -> None:
         self._client = client
         self._base = base_url.rstrip("/")
         self._headers = {"Authorization": f"Bearer {api_key}"}
+        # Rate limits are not in the spec (docs/platform/SUMMARY.md): pace.
+        self._delay = request_delay_seconds
 
     async def _get(self, path: str, params: dict | None = None) -> dict:
         # Retry only 429/503 with exponential backoff + jitter (CLAUDE.md).
         for attempt in range(MAX_RETRIES):
             resp = await self._client.get(f"{self._base}{path}", headers=self._headers, params=params)
+            if self._delay:
+                await asyncio.sleep(self._delay)
             if resp.status_code in (429, 503):
                 retry_after = resp.headers.get("Retry-After")
                 wait = float(retry_after) if retry_after else 2**attempt + random.uniform(0, 1)
@@ -91,6 +97,11 @@ class SigReadOnly:
 
     async def price(self, exchange_id: str, tournament_id: str) -> dict:
         return await self._get(f"/exchanges/{exchange_id}/price", {"tournamentId": tournament_id})
+
+    async def orderbook(self, exchange_id: str, tournament_id: str, depth: int = 1) -> dict:
+        return await self._get(
+            f"/exchanges/{exchange_id}/orderbook", {"tournamentId": tournament_id, "depth": depth}
+        )
 
 
 def sig_rules_text(raw_market: dict) -> list[tuple[str, str]]:
