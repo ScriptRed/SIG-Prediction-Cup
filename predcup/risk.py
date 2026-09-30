@@ -252,6 +252,12 @@ class KillSwitchResult:
 _EXPOSURE_FREEING_STATUSES = (OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
 
 
+def within_price_band(price: float, fair_value: float, max_deviation: float) -> bool:
+    """The risk price band: |price - fair value| <= max_deviation. Shared by
+    RiskManager and the quoter so they can't disagree, float noise included."""
+    return not abs(price - fair_value) > max_deviation
+
+
 def is_exposure_counted(status: OrderStatus) -> bool:
     """An order's exposure counts unless the venue has *confirmed* it
     cancelled, expired, or rejected (never went live). `OrderStatus.OPEN`
@@ -567,7 +573,7 @@ class RiskManager:
             return RiskDecision(False, "exceeds max order size" + ramp_note)
 
         if order.price is not None and fair_value is not None:
-            if abs(order.price - fair_value) > limits.max_price_deviation_from_fair_value:
+            if not within_price_band(order.price, fair_value, limits.max_price_deviation_from_fair_value):
                 return RiskDecision(False, "price deviates too far from fair value")
 
         tracked = self._exposure_orders()

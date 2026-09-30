@@ -83,9 +83,15 @@ def test_uncertainty_beyond_risk_band_means_no_quote():
 
 
 def test_post_only_never_crosses_the_sig_book():
-    # Fair value 0.5 but SIG ask at 0.47: a 0.49 bid would take; back off to 0.465.
+    # Fair value 0.5 but SIG ask at 0.485: a 0.49 bid would take; back off to 0.48.
+    q = compute_quote(fv(0.5, 0.01), 0, best_bid=0.40, best_ask=0.485, cfg=CFG)
+    assert q.bid == 0.48 and q.ask == 0.51
+
+
+def test_post_only_back_off_beyond_the_band_drops_the_side():
+    # SIG ask at 0.47: backing off to 0.465 is 3.5 points from fair value.
     q = compute_quote(fv(0.5, 0.01), 0, best_bid=0.40, best_ask=0.47, cfg=CFG)
-    assert q.bid == 0.465 and q.ask == 0.51
+    assert q.bid is None and q.ask == 0.51
 
 
 def test_sides_outside_price_range_are_dropped():
@@ -257,12 +263,45 @@ def test_blackout_pulls_everything_posted():
 
 
 def test_books_feed_post_only():
-    q, router, _ = make_quoter({"e0": fv(0.5)}, books={"e0": (0.40, 0.47)})
+    q, router, _ = make_quoter({"e0": fv(0.5)}, books={"e0": (0.40, 0.485)})
     run(q.cycle(targets(1), NOW))
-    assert [o.price for o in flat(router.calls[0])] == [0.465, 0.51]
+    assert [o.price for o in flat(router.calls[0])] == [0.48, 0.51]
 
 
 def test_positions_feed_inventory_skew():
     q, router, _ = make_quoter({"e0": fv(0.5)}, positions={"e0": 100})
     run(q.cycle(targets(1), NOW))
     assert [o.price for o in flat(router.calls[0])] == [0.48, 0.5]
+
+
+# --- risk price band (2026-10-01): never send a side risk.check() would reject -----
+
+
+def test_skewed_side_beyond_the_risk_band_is_dropped():
+    # fv 0.5, half-spread 0.02, short the max: reservation 0.52 -> ask 0.54 is 4 points out.
+    q = compute_quote(fv(0.5, 0.02), position=-199, best_bid=None, best_ask=None, cfg=CFG)
+    assert q.ask is None and q.bid == 0.495  # reservation 0.5199 -> bid 0.495, ask 0.54 (4 pts) dropped
+
+
+def test_quoter_and_risk_agree_at_the_band_edge():
+    # 0.05 - 0.02 is 0.030000000000000002 in floats: risk rejects it, so the quoter must drop it.
+    from predcup.risk import within_price_band
+
+    q = compute_quote(fv(0.02, 0.02), -60, None, None, CFG)
+    assert q.ask is None or within_price_band(q.ask, 0.02, CFG.max_price_deviation)
+    assert not within_price_band(0.05, 0.02, 0.03)
+
+
+def test_nothing_the_quoter_produces_fails_the_risk_band():
+    from predcup.risk import within_price_band
+
+    band = CFG.max_price_deviation
+    for value in [0.02 + i * 0.0137 for i in range(70)]:
+        for unc in (0.0, 0.01, 0.02, 0.029):
+            for position in (-200, -150, -60, 0, 60, 150, 199):
+                for book in ((None, None), (value - 0.01, value + 0.01), (value + 0.005, value + 0.02)):
+                    q = compute_quote(fv(value, unc), position, book[0], book[1], CFG)
+                    for side in (q.bid, q.ask):
+                        if side is not None:
+                            # the same test risk.check() applies
+                            assert within_price_band(side, value, band), (value, unc, position, book, side)

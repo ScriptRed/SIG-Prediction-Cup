@@ -6,8 +6,10 @@
     bid = floor_tick(reservation - half_spread), ask = ceil_tick(reservation + half_spread)
 
 A side is dropped (never forced) when it falls outside [0.005, 0.995],
-when the position limit is reached on that side, or when the half-spread
-exceeds the risk band (risk.max_price_deviation_from_fair_value). With
+when the position limit is reached on that side, or when it would sit
+further from fair value than the risk band
+(risk.max_price_deviation_from_fair_value), so risk.check() never has to
+reject a quote for that. With
 post_only the quote backs off one tick behind the opposite SIG best price
 rather than crossing it.
 
@@ -29,6 +31,7 @@ from datetime import datetime, timedelta
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValue
 from predcup.models import MAX_PRICE, MIN_PRICE, TICK, Order
+from predcup.risk import within_price_band
 from predcup.venues.sig import new_idempotency_key
 
 _EPS = 1e-9
@@ -120,6 +123,13 @@ def compute_quote(
     if bid is not None and (bid < MIN_PRICE - _EPS or position >= cfg.max_position_shares):
         bid = None
     if ask is not None and (ask > MAX_PRICE + _EPS or position <= -cfg.max_position_shares):
+        ask = None
+    # Never send a side risk.check() would reject for distance from fair
+    # value (inventory skew or post-only back-off can push it out): the
+    # exact function RiskManager uses.
+    if bid is not None and not within_price_band(bid, fv.value, cfg.max_price_deviation):
+        bid = None
+    if ask is not None and not within_price_band(ask, fv.value, cfg.max_price_deviation):
         ask = None
     return TwoSidedQuote(bid, ask)
 
