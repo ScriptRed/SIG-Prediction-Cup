@@ -417,3 +417,9 @@ def test_get_new_fills_refuses_fractional_quantity():
     venue, _ = make_venue(rec)
     with pytest.raises(ValueError, match="fractional"):
         run(venue.get_new_fills(TID, known_ids=set()))
+
+
+def test_tournament_summary_reads_status_and_start():
+    venue, _ = make_venue(Recorder([]))
+    s = run(venue.tournament_summary())
+    assert s["id"] == TID and s["myBalance"] == 98765.5

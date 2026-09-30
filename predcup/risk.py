@@ -594,6 +594,34 @@ class RiskManager:
 
         return RiskDecision(True)
 
+    # Test orders (go-live gate (c)/(d), scripts/place_test_order.py): the
+    # one kind of order allowed far from fair value, so only 1 share at a
+    # price no real trade happens at.
+    TEST_ORDER_MAX_QUANTITY = 1
+    TEST_ORDER_MAX_BUY_PRICE = 0.01
+    TEST_ORDER_MIN_SELL_PRICE = 0.99
+
+    def check_test_order(self, order: Order) -> RiskDecision:
+        """Every normal check except distance from fair value (a test order
+        is far from the market on purpose), plus hard limits: 1 share, a
+        YES buy at <= 0.01 or a YES sell at >= 0.99. Logged either way."""
+        if order.quantity > self.TEST_ORDER_MAX_QUANTITY:
+            decision = RiskDecision(False, f"test orders are limited to {self.TEST_ORDER_MAX_QUANTITY} share")
+        elif order.price is None or order.side != "yes" or not (
+            (order.action == "buy" and order.price <= self.TEST_ORDER_MAX_BUY_PRICE)
+            or (order.action == "sell" and order.price >= self.TEST_ORDER_MIN_SELL_PRICE)
+        ):
+            decision = RiskDecision(False, "test orders must be a YES limit at an extreme price "
+                                           f"(buy <= {self.TEST_ORDER_MAX_BUY_PRICE}, sell >= {self.TEST_ORDER_MIN_SELL_PRICE})")  # fmt: skip
+        else:
+            decision = self._evaluate(order, fair_value=None, outside_data_age_seconds=0.0)
+        self._event_store.log("test_order_check", {
+            "market_id": order.market_id, "exchange_id": order.exchange_id, "action": order.action,
+            "quantity": order.quantity, "price": order.price, "approved": decision.approved,
+            "reason": decision.reason,
+        })  # fmt: skip
+        return decision
+
     async def kill_switch(
         self,
         exchange_id: str | None = None,

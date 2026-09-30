@@ -204,6 +204,26 @@ class OrderRouter:
         return RouterResult(approved=len(approved), placed=placed, done=done, blocked=self._blocked)
 
 
+    async def place_test_order(self, order: Order) -> Order | None:
+        """Go-live gate (c)/(d) only: one order through
+        RiskManager.check_test_order (1 share, extreme price, every other
+        limit). Returns the placed order, or None if refused."""
+        if self._control.halted:
+            return None
+        decision = self._risk.check_test_order(order)
+        if not decision.approved:
+            return None
+        self._risk.record_order(order)
+        [result] = await self._venue.place_batch([order], new_idempotency_key())
+        if not result.ok:
+            self._risk.confirm_order_state(order.idempotency_key, OrderStatus.REJECTED)
+            self._store.log("test_order_failed", {"status": result.status, "code": result.code, "message": result.message})
+            return None
+        self._risk.confirm_order_state(order.idempotency_key, result.order.status)
+        self._store.log("test_order", {**_order_payload(result.order, None), "order_id": result.order.id})
+        return result.order
+
+
 def _order_payload(order: Order, fv: FairValue | None) -> dict:
     return {
         "key": order.idempotency_key,

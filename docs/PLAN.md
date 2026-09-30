@@ -13,7 +13,7 @@
 - [x] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py`: merged 2026-09-30, one `App.kill` path (latched `RiskManager.kill`), shutdown cancels all Cup orders (live) in `App.serve`'s finally; restart-after-kill in `docs/deploy.md`
 - [x] Per-market cancel scope: re-quotes cancel by `exchangeId`; tournament-wide only in kill switch and shutdown
 - [x] Manual trading coexists: all account fills reconciled, `trading.manual_only` never quoted, manual positions in risk
-- [x] Go-live gate written into LAUNCH_CHECKLIST §C (items a–f). Tooling for (c) and (d), a one-off test order through the router, is not built yet
+- [x] Go-live gate written into LAUNCH_CHECKLIST §C (items a–f). Tooling for (c) and (d): `scripts/place_test_order.py` (through `OrderRouter.place_test_order` → `RiskManager.check_test_order`)
 - [ ] Multi-hour run against the mock exchange: harness `python -m sim.run_mock --hours 3` done (real App in live mode against MockExchange only, simulated Kalshi, random fills, injected Kalshi outages, invariant checks). 3-min smoke run passed 2026-09-30; a 2 h pre-merge soak started the same evening; the real multi-hour run follows the safety merge
 
 

@@ -210,6 +210,13 @@ class SigVenue(Venue):
             self._tournament_id = data["id"]
         return self._tournament_id
 
+    async def tournament_summary(self) -> dict:
+        """GET /tournaments/{slug} (TournamentSummary): id, status,
+        startDate, endDate, myBalance, ..."""
+        data = await self._get(f"/tournaments/{self._slug}")
+        self._tournament_id = data["id"]
+        return data
+
     async def _check(self, tournament_id: str) -> str:
         tid = await self.tournament_id()
         if tournament_id != tid:
