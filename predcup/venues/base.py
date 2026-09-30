@@ -11,6 +11,7 @@ see docs/platform/SUMMARY.md). Never give these parameters a default.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 
@@ -24,6 +25,16 @@ class CancelAllResult(BaseModel):
     @property
     def all_cancelled(self) -> bool:
         return self.remaining == 0
+
+
+@dataclass(frozen=True)
+class BatchItemResult:
+    index: int
+    ok: bool
+    status: int
+    order: Order  # with venue id and status when ok
+    code: str = ""
+    message: str = ""
 
 
 class Venue(ABC):
@@ -57,3 +68,12 @@ class Venue(ABC):
 
     @abstractmethod
     async def get_balance(self, tournament_id: str) -> float: ...
+
+    async def place_batch(self, orders: list[Order], batch_key: str) -> list[BatchItemResult]:
+        """Several independent orders. Default: one place_order each (the
+        mock); SigVenue overrides with POST /orders/batch."""
+        out = []
+        for i, o in enumerate(orders):
+            placed = await self.place_order(o)
+            out.append(BatchItemResult(i, True, 201, placed))
+        return out

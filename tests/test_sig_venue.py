@@ -374,3 +374,18 @@ def test_reads_retry_429_and_report():
     venue, _ = make_venue(rec, rate_limited=lambda e, ra: seen.append((e, ra)))
     run(venue.cancel_all(TID))
     assert seen == [("POST /orders/cancel-all", None)]
+
+
+def test_get_top_of_books_bulk_read_chunks_at_100():
+    def page(ids):
+        return {"data": [{"exchangeId": i, "marketId": "m", "option": "YES", "latestPrice": None,
+                          "bestBid": 0.4, "bestAsk": None, "spread": None} for i in ids], "missingIds": []}  # fmt: skip
+
+    ids = [str(i) for i in range(150)]
+    rec = Recorder([(200, page(ids[:100]), None), (200, page(ids[100:]), None)])
+    venue, _ = make_venue(rec)
+    out = run(venue.get_top_of_books(ids, TID))
+    params = [dict(r.url.params) for r in rec.requests]
+    assert [len(p["ids"].split(",")) for p in params] == [100, 50]
+    assert all(p["tournamentId"] == TID for p in params)
+    assert out["149"] == (0.4, None) and len(out) == 150

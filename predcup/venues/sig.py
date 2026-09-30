@@ -26,7 +26,6 @@ import asyncio
 import random
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -43,7 +42,7 @@ from predcup.models import (
     OrderStatus,
     Position,
 )
-from predcup.venues.base import CancelAllResult, Venue
+from predcup.venues.base import BatchItemResult, CancelAllResult, Venue
 
 MAX_BATCH = 50  # BatchOrderInput.orders maxItems
 PAGE_LIMIT_ORDERS = 200  # GET /orders limit max
@@ -104,16 +103,6 @@ def _json(resp: httpx.Response) -> Any:
         return resp.json()
     except ValueError:
         return None
-
-
-@dataclass(frozen=True)
-class BatchItemResult:
-    index: int
-    ok: bool
-    status: int
-    order: Order  # with venue id and status when ok
-    code: str = ""
-    message: str = ""
 
 
 RateLimitCallback = Callable[[str, "float | None"], None]
@@ -370,6 +359,20 @@ class SigVenue(Venue):
             bids=[OrderBookLevel(price=lv["price"], quantity=lv["quantity"]) for lv in data.get("bids") or []],
             asks=[OrderBookLevel(price=lv["price"], quantity=lv["quantity"]) for lv in data.get("asks") or []],
         )
+
+    async def get_top_of_books(
+        self, exchange_ids: list[str], tournament_id: str
+    ) -> dict[str, tuple[float | None, float | None]]:
+        """Best (bid, ask) for many exchanges: GET /exchanges/prices, up to
+        100 ids per request, Cup tournament scope."""
+        tid = await self._check(tournament_id)
+        out: dict[str, tuple[float | None, float | None]] = {}
+        for i in range(0, len(exchange_ids), 100):
+            chunk = exchange_ids[i : i + 100]
+            data = await self._get("/exchanges/prices", {"ids": ",".join(chunk), "tournamentId": tid})
+            for p in data.get("data") or []:
+                out[str(p["exchangeId"])] = (p.get("bestBid"), p.get("bestAsk"))
+        return out
 
     async def get_open_orders(self, tournament_id: str, exchange_id: str | None = None) -> list[Order]:
         tid = await self._check(tournament_id)
