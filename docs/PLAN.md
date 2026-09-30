@@ -41,6 +41,7 @@ Launch-day plan (1 Oct): trade by hand at the open against Kalshi mispricings an
 - [ ] T5. Mid-October: district model (partisan lean + national environment + incumbency). National environment derived from Kalshi's House-control price and the Tier A races. Feeds Tier B fair values and `scenario.py` (step 15) for Phase 2. Runs as a separate process; writes results to SQLite for the bot to read.
 
 ## Stage 3 — Mid October
+- [ ] 14a. (Low priority, after launch; requested 2026-09-30) Find which Cup states allow fusion voting, citing a source (Ballotpedia or the state's election law). Add a `fusion_check_needed` column to `market_map.csv`, true for races in those states. The quoter must skip any race with `fusion_check_needed=true` whose `fusion_risk` hasn't been explicitly reviewed. Open design point: `fusion_risk` currently defaults to `false`, so a reviewed `false` can't be told apart from an unreviewed one. Needs a review marker (e.g. `fusion_reviewed` column, or blank = unreviewed), and `fusion_race_keys` must treat unreviewed as not safe
 - [ ] 15. `scenario.py` correlated Monte Carlo; calibrate to Kalshi chamber-control prices; compare with platform (separate process, results via SQLite)
 - [ ] 16. `strategies/scanner.py` consistency alerts using scenario model
 - [ ] 17. `news.py` RSS → LLM classification → quote-pull triggers + alerts
