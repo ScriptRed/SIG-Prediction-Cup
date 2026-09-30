@@ -12,7 +12,8 @@ from predcup.mapping_review import kalshi_mid_in_sig_terms, not_2026_reasons
 from predcup.market_map import state_in_title
 from predcup.venues.kalshi import KalshiEvent, KalshiMarket
 
-_RULES_PARTY_RE = re.compile(r"\b(Democratic|Republican) [Pp]arty\b")
+# Optional state-party suffix, e.g. Minnesota's "Democratic (DFL) party".
+_RULES_PARTY_RE = re.compile(r"\b(Democratic|Republican)(?: \([A-Z-]+\))? [Pp]arty\b")
 
 
 @dataclass(frozen=True)

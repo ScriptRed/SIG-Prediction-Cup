@@ -235,3 +235,15 @@ def test_end_to_end_writes_csv_and_summary(tmp_path, monkeypatch):
     text = "\n".join(lines)
     assert "1 races with Kalshi tickers (2 SIG markets)" in text
     assert "CLEAN: 0 races" in text and "AZ-Senate: R: party mismatch" in text
+
+
+def test_minnesota_dfl_party_is_democratic():
+    raw = km(rules_primary="If a representative of the Democratic (DFL) party is sworn in as a Senator of "
+             "Minnesota for the term beginning in 2027, then the market resolves to Yes.")  # fmt: skip
+    assert kalshi_party(parse_market(raw)) == "D"
+
+
+def test_february_2027_expiry_is_still_2026_cycle():
+    assert not any(f.startswith("not 2026") for f in row(raw=km(expected_expiration_time="2027-02-01T15:00:00Z")).flags)
+    late = row(raw=km(expected_expiration_time="2029-01-09T15:00:00Z"))
+    assert any("outside the 2026 cycle" in f for f in late.flags)

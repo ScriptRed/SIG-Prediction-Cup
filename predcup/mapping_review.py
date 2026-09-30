@@ -112,10 +112,10 @@ def not_2026_reasons(kalshi: KalshiMarket, event: KalshiEvent | None) -> list[st
     parts = kalshi.event_ticker.split("-")
     if len(parts) > 1 and parts[1][:2].isdigit() and parts[1][:2] != CUP_YEAR[2:] and parts[1][:4] != CUP_YEAR:
         reasons.append(f"event ticker {kalshi.event_ticker} is not a {CUP_YEAR} event")
-    # January 2027 is allowed: certification can push expected expiry past
-    # year end.
+    # First half of 2027 is allowed: swearing-in, inauguration and chamber
+    # organisation push 2026 contracts' expected expiry to Jan-Feb 2027.
     expiry = kalshi.expected_expiration_time or kalshi.close_time
-    if expiry and not expiry.startswith(CUP_YEAR) and not expiry.startswith("2027-01"):
+    if expiry and not expiry.startswith(CUP_YEAR) and not ("2027-01" <= expiry[:7] <= "2027-06"):
         reasons.append(f"expected expiration {expiry} is outside the {CUP_YEAR} cycle")
     return reasons
 
