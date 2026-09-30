@@ -1,5 +1,19 @@
 # Build Plan
 
+## Launch status (updated as each piece lands; no live automated orders until every item is done and the user says go)
+
+- [x] NH/VT Governor Kalshi mapping (VT → GOVPARTYVT-26; NH stays on GOVPARTYNH-28, which is the 2026 race)
+- [ ] launch_report: tradeable-edge columns, unmapped-race section, "trade by hand at the open" list
+- [ ] LAUNCH_CHECKLIST §D: SIG seed quotes vs Kalshi moves
+- [ ] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()`
+- [ ] `fairvalue.py` v1 (Kalshi mid, verified Tier A only)
+- [ ] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry)
+- [ ] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram)
+- [ ] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`)
+- [ ] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py` — built in a separate session
+- [ ] Multi-hour run against the mock exchange
+
+
 Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; trading closes 12:00 ET Wed 4 Nov 2026.
 
 ## Stage 0 — Setup

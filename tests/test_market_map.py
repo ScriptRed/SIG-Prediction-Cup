@@ -136,3 +136,24 @@ def test_fusion_race_keys_rejects_unknown_value():
 def test_fusion_race_keys_rejects_missing_column():
     with pytest.raises(ValueError, match="no fusion_risk column"):
         fusion_race_keys(_CUP, [{"platform_id": "1"}])
+
+
+# --- governor series holding several cycles (GOVPARTYVT-26 and -28) ---------
+
+from predcup.market_map import prefer_2026_event_markets  # noqa: E402
+
+
+def test_prefer_2026_event_markets_drops_other_cycles_when_2026_exists():
+    markets = [
+        {"ticker": "GOVPARTYVT-28-D", "event_ticker": "GOVPARTYVT-28"},
+        {"ticker": "GOVPARTYVT-26-D", "event_ticker": "GOVPARTYVT-26"},
+        {"ticker": "GOVPARTYVT-26-R", "event_ticker": "GOVPARTYVT-26"},
+    ]
+    assert [m["ticker"] for m in prefer_2026_event_markets(markets)] == ["GOVPARTYVT-26-D", "GOVPARTYVT-26-R"]
+
+
+def test_prefer_2026_event_markets_keeps_all_when_no_2026_event():
+    # NH: Kalshi's only event is GOVPARTYNH-28, which is the 2026 race by its
+    # rules. Nothing is dropped; show_mapping flags the ticker for a human.
+    markets = [{"ticker": "GOVPARTYNH-28-D", "event_ticker": "GOVPARTYNH-28"}]
+    assert prefer_2026_event_markets(markets) == markets

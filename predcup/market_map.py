@@ -182,3 +182,16 @@ def fusion_race_keys(cup_rows: list[dict[str, str]], map_rows: list[dict[str, st
                 raise ValueError(f"fusion_risk row {r['platform_id']} is not in the Cup market list")
             keys.add(race_of[r["platform_id"]])
     return frozenset(keys)
+
+
+def prefer_2026_event_markets(markets: list[dict]) -> list[dict]:
+    """A Kalshi series can hold several cycles (GOVPARTYVT-26 and -28). Keep
+    only the markets of -26 events when any exist; otherwise return all of
+    them unchanged (GOVPARTYNH-28 is the 2026 race despite its ticker), and
+    leave the year question to show_mapping's warnings."""
+    def is_2026(m: dict) -> bool:
+        parts = m.get("event_ticker", "").split("-")
+        return len(parts) > 1 and (parts[1].startswith("26") or parts[1].startswith("2026"))
+
+    cycle = [m for m in markets if is_2026(m)]
+    return cycle or markets

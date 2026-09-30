@@ -42,6 +42,7 @@ from predcup.market_map import (
     index_senate_events,
     match_party,
     match_senate_party,
+    prefer_2026_event_markets,
 )
 
 KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
@@ -175,7 +176,7 @@ def kalshi_match_for_race(
     else:
         return [], 0.0, "no Kalshi party-level series identified for this race"
 
-    markets = fetch_kalshi_series_markets(client, series)
+    markets = prefer_2026_event_markets(fetch_kalshi_series_markets(client, series))
     if series in ("CONTROLS", "CONTROLH"):
         # These series span multiple election cycles (e.g. CONTROLS-2026-R
         # *and* CONTROLS-2028-R both exist) -- the Cup's chamber-control
