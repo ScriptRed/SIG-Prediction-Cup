@@ -9,11 +9,11 @@ only). Going live is a code change the user approves (PLAN launch status).
 Safety wiring (predcup/killfile.py, predcup/alerts.py):
 - App.kill(reason): the one kill path, for the KILL file watcher, Telegram
   /kill and any internal halt (reconciliation mismatch, whole-batch
-  rejection). Live: the latched RiskManager.kill() (every later order is
-  rejected, then cancel all Cup orders and confirm). Shadow: halt and log;
-  nothing is cancelled, since any resting order is a manual one. The
-  process stays up after a kill (Telegram keeps answering); a restart
-  resumes (docs/deploy.md).
+  rejection). In shadow and live mode alike: the latched RiskManager.kill()
+  (every later order is rejected, then cancel ALL Cup orders
+  tournament-wide, manual ones included, verify none remain, alert).
+  Kill means no open orders. The process stays up after a kill (Telegram
+  keeps answering); a restart resumes (docs/deploy.md).
 - App.reset_ramp(reason): Telegram /resetramp.
 - `alerter` is injected: TelegramAlerter in main.py.
 - App.add_task(factory): watchers and the alert sender run alongside the loops.
@@ -209,12 +209,10 @@ class App:
         if self._halt_handled:
             return self._kill_result or KillSwitchResult(success=True, attempts=0, remaining_order_ids=[])
         self._halt_handled = True
-        if self.shadow:
-            self.store.log("kill_switch_shadow", {"reason": reason})
-            self.alerter.send(f"Halted (shadow mode, nothing to cancel): {reason}")
-            self._kill_result = KillSwitchResult(success=True, attempts=0, remaining_order_ids=[])
-        else:
-            self._kill_result = await self.risk.kill(reason)
+        # One rule, any mode: kill means no open Cup orders. The latched
+        # RiskManager.kill() cancels tournament-wide, verifies via
+        # GET /orders?status=open, retries, and alerts either way.
+        self._kill_result = await self.risk.kill(reason)
         return self._kill_result
 
     # --- loops ------------------------------------------------------------------------

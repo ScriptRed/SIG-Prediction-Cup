@@ -148,7 +148,7 @@ def test_request_kill_in_shadow_halts_and_logs(tmp_path):
     app.request_kill("KILL file")
     run(app.handle_halt_once())
     assert app.control.halted
-    assert store.all_events("kill_switch_shadow")[0]["payload"]["reason"] == "KILL file"
+    assert store.all_events("kill")[0]["payload"]["reason"] == "KILL file"
     run(app.quote_once())
     assert store.all_events("shadow_quote") == []
 

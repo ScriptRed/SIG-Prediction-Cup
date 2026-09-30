@@ -39,14 +39,40 @@ def test_kill_live_latches_risk_and_cancels_everything(tmp_path):
     assert app.risk.check(order, fair_value=0.5, outside_data_age_seconds=0).reason == "kill switch engaged"
 
 
-def test_kill_in_shadow_halts_but_leaves_manual_orders_alone(tmp_path):
+def test_kill_in_shadow_also_cancels_everything(tmp_path):
+    # One rule (2026-10-01): kill means no open Cup orders, in any mode.
     venue = BookVenue()
     app, store = make_app(tmp_path, venue=venue)
     resting(venue)
     assert run(app.kill("test")).success
-    assert app.control.halted
-    assert len(run(venue.get_open_orders(TID))) == 1
-    assert store.all_events("kill_switch_shadow")
+    assert app.control.halted and app.risk.is_killed
+    assert run(venue.get_open_orders(TID)) == []
+    assert store.all_events("kill")[0]["payload"]["reason"] == "test"
+
+
+def test_internal_halt_in_shadow_cancels_everything(tmp_path):
+    venue = BookVenue()
+    app, _ = make_app(tmp_path, venue=venue)
+    resting(venue)
+    app.control.halt("reconciliation mismatch: 1068")
+    run(app.handle_halt_once())
+    assert run(venue.get_open_orders(TID)) == []
+
+
+class StubbornVenue(BookVenue):
+    async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
+        from predcup.venues.base import CancelAllResult
+
+        return CancelAllResult(cancelled=0, remaining=0)  # claims success, cancels nothing
+
+
+def test_kill_verifies_and_alerts_when_orders_remain(tmp_path):
+    venue = StubbornVenue()
+    app, _ = make_app(tmp_path, venue=venue)
+    resting(venue)
+    result = run(app.kill("test"))
+    assert not result.success and result.remaining_order_ids
+    assert any("still open" in m for m in app.alerter.messages)
 
 
 def test_second_kill_is_harmless(tmp_path):
