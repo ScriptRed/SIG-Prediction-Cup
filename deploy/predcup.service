@@ -1,0 +1,41 @@
+# systemd unit for the Predictions Cup trading bot. Install guide:
+# docs/deploy.md. Paths assume the repo is checked out at /opt/predcup and
+# owned by the unprivileged user `predcup`; edit both if yours differ.
+#
+# Secrets are NOT in this file: predcup.main reads /opt/predcup/.env.
+
+[Unit]
+Description=Predictions Cup trading bot
+Wants=network-online.target
+After=network-online.target
+# Crash-loop brake: more than 5 starts in 10 minutes and systemd stops
+# trying. Each restart also resumes the size ramp one step lower.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=predcup
+Group=predcup
+WorkingDirectory=/opt/predcup
+ExecStart=/opt/predcup/.venv/bin/python -m predcup.main
+Environment=PYTHONUNBUFFERED=1
+
+# Restart on crash (non-zero exit, signal, watchdog), not on a clean exit.
+Restart=on-failure
+RestartSec=10s
+
+# Stop with SIGINT so asyncio.run() raises KeyboardInterrupt and the
+# shutdown path can cancel all orders; SIGKILL only after 30 s.
+KillSignal=SIGINT
+TimeoutStopSec=30s
+
+# Hardening: read-only system, writable only data/ (SQLite).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/predcup/data
+
+[Install]
+WantedBy=multi-user.target
