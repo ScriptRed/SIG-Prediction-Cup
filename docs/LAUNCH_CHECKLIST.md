@@ -72,9 +72,16 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 1. [ ] Books at open: are they seeded by SIG market makers? Note typical spreads and depth in headline vs niche markets
 2. [ ] Manual opening trades on obvious mispricings (also secures rank eligibility: ≥1 trade)
 3. [ ] Bot in **shadow mode for ~1 hour**: compare intended quotes with the live books; any quote far from market = investigate before going live
-4. [ ] Switch to live: **3–5 well-mapped markets, small size**. Before this: no manual resting orders, since the bot's re-quote is a tournament-wide cancel-all and would cancel them (or change the router to per-exchange scope first)
-5. [ ] First reconciliation passes cleanly (local positions = `/tournaments/{slug}/portfolio/positions`)
-6. [ ] Scale up only after several clean reconciliations and non-negative markouts
+4. [ ] **Go-live gate: every item below ticked, with the date and evidence, before `LIVE_ENABLED` in `predcup/app.py` is set to `True`.** Setting it is a separate commit made only after the user says go.
+   - [ ] (a) The mock soak passes on the merged code: `python -m sim.run_mock --hours 3` exits 0 (no loop errors, no reconciliation mismatch, no halt, exposure within caps)
+   - [ ] (b) One hour of shadow mode against the live books (`python -m predcup.main` with the launch races verified): intended quotes (`shadow_quote` in events_log) sit sensibly against the live SIG books, no risk-rejection storms, no loop-lag alerts
+   - [ ] (c) One tiny order placed through the adapter (and so through `risk.check()`), seen in `GET /orders?status=open`, cancelled, and gone from the open orders afterwards
+   - [ ] (d) `/kill` tested live with a resting test quote: Telegram replies "Kill engaged", `python -m scripts.bot_status` shows no open Cup orders afterwards; then the restart-after-kill procedure in `docs/deploy.md`
+   - [ ] (e) First reconciliation clean (local positions from fills = `/tournaments/{slug}/portfolio/positions`)
+   - [ ] (f) A manual buy-then-sell round trip in one market (web UI, a few shares) is recorded correctly by the bot: `fill` events for both legs, the local position back to 0, and the next reconciliation clean. This confirms the fill sign convention (`SigVenue.get_new_fills`, `TODO(api)`)
+5. [ ] Switch to live: **3–5 well-mapped markets, small size**. Markets you trade by hand go in `trading.manual_only`; don't leave manual resting orders in markets the bot quotes (each re-quote cancels that market's orders; other markets are never touched)
+6. [ ] First live reconciliation passes cleanly
+7. [ ] Scale up only after several clean reconciliations and non-negative markouts
 
 ---
 
