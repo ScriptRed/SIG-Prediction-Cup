@@ -6,13 +6,19 @@ Shadow mode is the only mode this build runs: LIVE_ENABLED is False and
 App refuses shadow=False unless live_allowed is passed explicitly (tests
 only). Going live is a code change the user approves (PLAN launch status).
 
-Hooks for the safety branch (KILL file watcher, Telegram):
-- App.request_kill(reason): halt quoting, then the halt handler runs the
-  kill switch (cancel all + confirm) in live mode.
+Safety wiring (predcup/killfile.py, predcup/alerts.py):
+- App.kill(reason): the one kill path, for the KILL file watcher, Telegram
+  /kill and any internal halt (reconciliation mismatch, whole-batch
+  rejection). Live: the latched RiskManager.kill() (every later order is
+  rejected, then cancel all Cup orders and confirm). Shadow: halt and log;
+  nothing is cancelled, since any resting order is a manual one. The
+  process stays up after a kill (Telegram keeps answering); a restart
+  resumes (docs/deploy.md).
 - App.reset_ramp(reason): Telegram /resetramp.
-- `alerter` is injected: Telegram replaces the default log alerter.
-- App.add_task(coro_factory): extra long-running tasks (watchers) run
-  alongside the loops and are cancelled with them.
+- `alerter` is injected: TelegramAlerter in main.py.
+- App.add_task(factory): watchers and the alert sender run alongside the loops.
+- App.serve(stop_event): runs everything; its finally block cancels all Cup
+  orders in live mode on any exit (SIGINT from systemd, crash, cancellation).
 """
 
 from __future__ import annotations
@@ -28,7 +34,14 @@ from predcup.fairvalue import FairValueTracker, KalshiQuote, kalshi_fair_value, 
 from predcup.looplag import LoopLagMonitor, load_loop_lag_config
 from predcup.orders import OrderRouter
 from predcup.reconcile import Reconciler
-from predcup.risk import Alerter, RiskManager, SizeRamp, load_risk_limits, load_size_ramp_config
+from predcup.risk import (
+    Alerter,
+    KillSwitchResult,
+    RiskManager,
+    SizeRamp,
+    load_risk_limits,
+    load_size_ramp_config,
+)
 from predcup.store import EventStore
 from predcup.strategies.quoter import QuoteTarget, Quoter, load_quoter_config
 from predcup.venues.kalshi import KalshiMarket
@@ -126,6 +139,7 @@ class App:
         self.looplag = LoopLagMonitor(load_loop_lag_config(settings), store, alerter, clock=mono)
         self._quotes: dict[str, KalshiQuote] = {}
         self._halt_handled = False
+        self._kill_result: KillSwitchResult | None = None
         self._extra_tasks: list[Callable[[], Awaitable[None]]] = []
         store.log("app_start", {"shadow": shadow, "targets": [t.target.exchange_id for t in targets],
                                 "tournament_id": tournament_id})  # fmt: skip
@@ -133,10 +147,16 @@ class App:
     # --- hooks for the safety branch ------------------------------------------------
 
     def request_kill(self, reason: str) -> None:
+        """Synchronous halt (e.g. from a signal handler); the halt watcher
+        then runs the same path as kill()."""
         self.control.halt(reason)
 
+    async def kill(self, reason: str) -> KillSwitchResult:
+        self.control.halt(reason)
+        return await self._do_kill(reason)
+
     def reset_ramp(self, reason: str) -> None:
-        self.ramp.reset(reason)
+        self.risk.reset_size_ramp(reason)
 
     def add_task(self, factory: Callable[[], Awaitable[None]]) -> None:
         self._extra_tasks.append(factory)
@@ -170,19 +190,20 @@ class App:
         await self.reconciler.run_once()
 
     async def handle_halt_once(self) -> None:
-        if not self.control.halted or self._halt_handled:
-            return
+        if self.control.halted:
+            await self._do_kill(self.control.reason)
+
+    async def _do_kill(self, reason: str) -> KillSwitchResult:
+        if self._halt_handled:
+            return self._kill_result or KillSwitchResult(success=True, attempts=0, remaining_order_ids=[])
         self._halt_handled = True
-        reason = self.control.reason
         if self.shadow:
             self.store.log("kill_switch_shadow", {"reason": reason})
             self.alerter.send(f"Halted (shadow mode, nothing to cancel): {reason}")
-            return
-        result = await self.risk.kill_switch()
-        self.alerter.send(
-            f"Halted: {reason}. Kill switch "
-            + ("clean: no open orders." if result.success else f"FAILED, still open: {result.remaining_order_ids}")
-        )
+            self._kill_result = KillSwitchResult(success=True, attempts=0, remaining_order_ids=[])
+        else:
+            self._kill_result = await self.risk.kill(reason)
+        return self._kill_result
 
     # --- loops ------------------------------------------------------------------------
 
@@ -222,3 +243,29 @@ class App:
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def shutdown(self) -> None:
+        """Cancel all Cup orders (live) and confirm. Called from serve()'s
+        finally block; safe to call more than once."""
+        if self.shadow:
+            self.store.log("shutdown", {"cancel_all": "skipped (shadow)"})
+            return
+        result = await self.risk.kill_switch()
+        status = "clean" if result.success else f"FAILED: {result.remaining_order_ids}"
+        self.store.log("shutdown", {"cancel_all": status})
+        if not result.success:
+            self.alerter.send(f"Shutdown: orders still open after cancel-all: {result.remaining_order_ids}")
+
+    async def serve(self, stop: asyncio.Event, duration_seconds: float | None = None) -> None:
+        """Run until `stop` is set (SIGINT/SIGTERM), `duration_seconds`
+        passes, or the task is cancelled; always cancel all Cup orders on
+        the way out in live mode."""
+        run = asyncio.create_task(self.run(duration_seconds))
+        stopped = asyncio.create_task(stop.wait())
+        try:
+            await asyncio.wait({run, stopped}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for t in (run, stopped):
+                t.cancel()
+            await asyncio.gather(run, stopped, return_exceptions=True)
+            await self.shutdown()

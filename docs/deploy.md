@@ -36,7 +36,7 @@ the installed unit first.
 systemctl status predcup            # running? last restart?
 journalctl -u predcup -f            # live logs
 sudo systemctl restart predcup      # after a config change or git pull
-sudo systemctl stop predcup         # SIGINT: bot cancels orders, 30 s grace
+sudo systemctl stop predcup         # SIGINT: bot cancels all Cup orders (live mode) in a finally block, 30 s grace
 ```
 
 Update: `cd /opt/predcup && sudo -u predcup git pull && sudo -u predcup .venv/bin/pip install -r requirements.txt && sudo systemctl restart predcup`.
@@ -55,6 +55,29 @@ Either of these cancels all orders and halts quoting until the next restart:
 A `KILL` file present at startup kills again immediately, so a restart with
 the file still there stays halted. To resume: `sudo rm /opt/predcup/KILL`,
 then `sudo systemctl restart predcup`.
+
+## Restart after a kill
+
+A kill (Telegram `/kill`, the `KILL` file, a reconciliation mismatch, a
+whole-batch rejection) latches: the bot stays up but halted, and every
+order is refused until the process restarts. To resume:
+
+```bash
+cd /opt/predcup
+sudo rm -f KILL                                   # 1. delete KILL if present (else it kills again at start)
+sudo systemctl restart predcup                    # 2. restart (the size ramp resumes one step lower)
+sleep 75                                          # 3. let the first reconciliation run (every 60 s)
+sudo -u predcup .venv/bin/python -m scripts.bot_status   # 4. confirm
+```
+
+`scripts.bot_status` is read-only. It must print `No open Cup orders.` and
+a `clean` latest reconciliation dated after the restart, then `OK` (exit
+code 0). If it shows open orders, a mismatch, or no reconciliation yet,
+don't let it quote: `touch KILL` again and find out why first.
+
+A kill caused by a reconciliation mismatch also dropped the size ramp one
+step; a restart drops it one more. Use `/resetramp` only if you want launch
+size again, not to raise it.
 
 `/resetramp` resets the size ramp to launch size; the bot asks you to reply
 `YES` within `telegram.confirm_timeout_seconds`. With the bot stopped, use

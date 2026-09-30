@@ -1,12 +1,15 @@
 """Entry point: python -m predcup.main [--duration SECONDS]
 
 Reads config/settings.yaml and .env (SIG_API_KEY), resolves the Cup
-tournament, and runs predcup.app.App in SHADOW mode: fair values and
-quotes are computed, risk-checked and logged to events_log
-(`shadow_quote`), nothing is placed or cancelled. Live mode is disabled in
-this build (predcup.app.LIVE_ENABLED).
+tournament, and runs predcup.app.App: in SHADOW mode (while
+predcup.app.LIVE_ENABLED is False) fair values and quotes are computed,
+risk-checked and logged to events_log (`shadow_quote`), nothing is placed
+or cancelled.
 
-SIGINT/SIGTERM halt through the same path as the KILL switch.
+Safety: the KILL file watcher and Telegram /kill /resetramp (restricted to
+TELEGRAM_CHAT_ID) are wired to App.kill / App.reset_ramp. Telegram is
+required in live mode. SIGINT/SIGTERM (systemd stops with SIGINT) end
+App.serve(), whose finally block cancels all Cup orders in live mode.
 """
 
 from __future__ import annotations
@@ -23,7 +26,8 @@ import httpx
 import yaml
 from dotenv import load_dotenv
 
-from predcup.app import App, LogAlerter, load_targets
+from predcup.app import LIVE_ENABLED, App, LogAlerter, load_targets
+from predcup.killfile import KillFileWatcher
 from predcup.market_map import fusion_race_keys
 from predcup.store import EventStore
 from predcup.venues.kalshi import KalshiReadOnly
@@ -54,6 +58,24 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
+def build_alerter(settings: dict, store: EventStore, shadow: bool):
+    """(alerter, bot) - Telegram when configured; required in live mode.
+    Returns bot=None when Telegram isn't configured (shadow only)."""
+    from predcup.alerts import TelegramAlerter, TelegramBot, load_telegram_config, load_telegram_env
+
+    try:
+        token, chat_id = load_telegram_env()
+    except RuntimeError as e:
+        if not shadow:
+            raise RuntimeError(f"live mode needs Telegram for /kill and alerts: {e}") from e
+        print(f"WARNING: {e}; alerts go to events_log and stderr only, no Telegram /kill", file=sys.stderr)
+        return LogAlerter(store), None, None
+    tg = load_telegram_config(settings)
+    bot = TelegramBot(token)
+    alerter = TelegramAlerter(chat_id, bot.send_message, tg.min_send_interval_seconds, tg.max_send_attempts)
+    return alerter, bot, chat_id
+
+
 async def amain(duration: float | None) -> int:
     settings = yaml.safe_load(SETTINGS_PATH.read_text())
     load_dotenv(".env")
@@ -65,51 +87,65 @@ async def amain(duration: float | None) -> int:
     if not slug:
         print("platform.tournament_slug not set in settings.yaml", file=sys.stderr)
         return 1
+    shadow = not LIVE_ENABLED
 
     store = EventStore(settings["storage"]["db_path"])
-    alerter = LogAlerter(store)  # Telegram replaces this when the safety branch merges
+    alerter, bot, chat_id = build_alerter(settings, store, shadow)
     relay = RateLimitRelay(store)
     cup_rows, map_rows = _read_csv(MARKETS_PATH), _read_csv(MAP_PATH)
     targets = load_targets(cup_rows, map_rows)
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop.set)
 
-    async with httpx.AsyncClient(timeout=15) as sig_http, httpx.AsyncClient(timeout=15) as kalshi_http:
-        venue = SigVenue(sig_http, base_url=settings["platform"]["base_url"], api_key=api_key,
-                         tournament_slug=slug, on_rate_limited=relay)  # fmt: skip
-        tid = await venue.tournament_id()
-        configured = settings["platform"].get("tournament_id")
-        if configured and configured != tid:
-            print(f"tournament id mismatch: settings {configured}, API {tid}", file=sys.stderr)
-            return 1
-        bankroll = await venue.get_balance(tid)
-        kcfg = settings["venues"]["kalshi"]
-        kalshi = KalshiReadOnly(kalshi_http, kcfg["base_url"], kcfg["request_delay_seconds"])
+    try:
+        async with httpx.AsyncClient(timeout=15) as sig_http, httpx.AsyncClient(timeout=15) as kalshi_http:
+            venue = SigVenue(sig_http, base_url=settings["platform"]["base_url"], api_key=api_key,
+                             tournament_slug=slug, on_rate_limited=relay)  # fmt: skip
+            tid = await venue.tournament_id()
+            configured = settings["platform"].get("tournament_id")
+            if configured and configured != tid:
+                print(f"tournament id mismatch: settings {configured}, API {tid}", file=sys.stderr)
+                return 1
+            bankroll = await venue.get_balance(tid)
+            kcfg = settings["venues"]["kalshi"]
+            kalshi = KalshiReadOnly(kalshi_http, kcfg["base_url"], kcfg["request_delay_seconds"])
 
-        app = App(settings=settings, venue=venue, kalshi=kalshi, store=store, alerter=alerter,
-                  tournament_id=tid, bankroll=bankroll, targets=targets,
-                  market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in cup_rows},
-                  fusion_race_keys=fusion_race_keys(cup_rows, map_rows), shadow=True)  # fmt: skip
-        relay.target = app.risk.record_rate_limited
+            app = App(settings=settings, venue=venue, kalshi=kalshi, store=store, alerter=alerter,
+                      tournament_id=tid, bankroll=bankroll, targets=targets,
+                      market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in cup_rows},
+                      fusion_race_keys=fusion_race_keys(cup_rows, map_rows), shadow=shadow,
+                      live_allowed=LIVE_ENABLED)  # fmt: skip
+            relay.target = app.risk.record_rate_limited
 
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, app.request_kill, f"signal {sig.name}")
+            # Hard rule 7: the KILL file always works, Telegram /kill when configured.
+            watcher = KillFileWatcher.from_config(settings, app.kill, alerter=alerter)
+            app.add_task(watcher.run)
+            if bot is not None:
+                from predcup.alerts import CommandRouter, load_telegram_config
 
-        print(f"shadow mode: {len(targets)} quotable market(s), bankroll {bankroll:,.0f}, tournament {slug}",
-              file=sys.stderr)  # fmt: skip
-        if not targets:
-            print("no verified Tier A rows in market_map.csv: fair values and quotes will be empty "
-                  "(mark races with scripts.show_mapping --mark-verified)", file=sys.stderr)  # fmt: skip
+                tg = load_telegram_config(settings)
+                router = CommandRouter(chat_id, on_kill=app.kill, on_reset_ramp=app.reset_ramp,
+                                       confirm_timeout_seconds=tg.confirm_timeout_seconds, event_store=store)  # fmt: skip
+                app.add_task(alerter.run)
+                await bot.start(router)
 
-        run = asyncio.create_task(app.run(duration))
-        halted = asyncio.create_task(app.control.wait_for_halt())
-        done, _ = await asyncio.wait({run, halted}, return_when=asyncio.FIRST_COMPLETED)
-        if halted in done:
-            await app.handle_halt_once()
-            run.cancel()
-            await asyncio.gather(run, return_exceptions=True)
-        else:
-            halted.cancel()
-    store.close()
+            mode = "shadow" if shadow else "LIVE"
+            print(f"{mode} mode: {len(targets)} quotable market(s), bankroll {bankroll:,.0f}, tournament {slug}",
+                  file=sys.stderr)  # fmt: skip
+            if not targets:
+                print("no verified Tier A rows in market_map.csv: fair values and quotes will be empty "
+                      "(mark races with scripts.show_mapping --mark-verified)", file=sys.stderr)  # fmt: skip
+            alerter.send(f"predcup started ({mode}): {len(targets)} quotable market(s)")
+            await app.serve(stop, duration)  # its finally cancels all Cup orders in live mode
+    finally:
+        if bot is not None:
+            try:
+                await alerter.flush()
+            finally:
+                await bot.stop()
+        store.close()
     return 0
 
 
