@@ -9,6 +9,15 @@ platform:
   tournament_slug: "midterm-elections" # confirmed via GET /tournaments 2026-09-28
   tournament_id: null
 
+trading:
+  # Markets the bot never quotes: traded by hand only. Race keys (e.g.
+  # "DE-Senate") or SIG market ids (e.g. "387"). An unknown entry stops the
+  # bot at startup. Manual trades anywhere on the account are reconciled
+  # (all account fills) and count toward the bot's risk limits. Don't leave
+  # manual resting orders in markets the bot quotes: each re-quote cancels
+  # that market's orders.
+  manual_only: []
+
 storage:
   db_path: "data/predcup.db" # SQLite, WAL mode; git-ignored (*.db)
 

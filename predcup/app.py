@@ -55,12 +55,24 @@ class MappedTarget:
     map_row: dict[str, str]
 
 
-def load_targets(cup_rows: list[dict[str, str]], map_rows: list[dict[str, str]]) -> list[MappedTarget]:
+def load_targets(
+    cup_rows: list[dict[str, str]], map_rows: list[dict[str, str]], *, manual_only: list[str]
+) -> list[MappedTarget]:
     """Markets the bot may quote: market_map rows that are verified, Tier A
-    and have a Kalshi ticker (fairvalue.py re-checks all of this)."""
+    and have a Kalshi ticker (fairvalue.py re-checks all of this), minus
+    settings trading.manual_only (race keys or SIG market ids, traded by
+    hand only). An entry matching no market raises: a typo must not leave
+    a market open to the bot."""
+    manual = {str(m).strip() for m in manual_only}
+    known = {c["race_key"] for c in cup_rows} | {c["id"] for c in cup_rows}
+    unknown = sorted(manual - known)
+    if unknown:
+        raise ValueError(f"trading.manual_only entries match no Cup race or market: {unknown}")
     by_id = {r["platform_id"]: r for r in map_rows}
     out = []
     for c in cup_rows:
+        if c["race_key"] in manual or c["id"] in manual:
+            continue
         row = by_id.get(c["id"])
         if not row or row.get("verified", "").lower() != "true" or row.get("tier", "").upper() != "A":
             continue

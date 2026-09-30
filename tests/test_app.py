@@ -91,7 +91,7 @@ def make_app(tmp_path, *, shadow=True, live_allowed=False, venue=None, kalshi=No
     return App(
         settings=SETTINGS, venue=venue or BookVenue(), kalshi=kalshi or FakeKalshi(), store=store,
         alerter=Alerts(), tournament_id=TID, bankroll=100_000.0,
-        targets=load_targets(CUP, MAP), market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in CUP},
+        targets=load_targets(CUP, MAP, manual_only=[]), market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in CUP},
         fusion_race_keys=frozenset(), shadow=shadow,
         live_allowed=live_allowed, clock=clock or (lambda: NOW),
     ), store  # fmt: skip
@@ -111,7 +111,7 @@ def test_live_mode_refused_without_explicit_permission(tmp_path):
 
 
 def test_load_targets_only_verified_tier_a_with_ticker():
-    targets = load_targets(CUP, MAP)
+    targets = load_targets(CUP, MAP, manual_only=[])
     assert [(t.target.exchange_id, t.map_row["kalshi_ticker"]) for t in targets] == [("1068", "SENATEMA-26-D")]
     assert targets[0].target.race_key == "MA-Senate" and targets[0].target.party == "D"
 

@@ -93,7 +93,7 @@ async def amain(duration: float | None) -> int:
     alerter, bot, chat_id = build_alerter(settings, store, shadow)
     relay = RateLimitRelay(store)
     cup_rows, map_rows = _read_csv(MARKETS_PATH), _read_csv(MAP_PATH)
-    targets = load_targets(cup_rows, map_rows)
+    targets = load_targets(cup_rows, map_rows, manual_only=settings["trading"]["manual_only"])
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
