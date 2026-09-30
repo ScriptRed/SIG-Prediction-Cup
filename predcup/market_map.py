@@ -98,7 +98,8 @@ _SENATE_EXCLUDE = ("primary", "nominee", "nomination", "runoff", "caucus")
 _YEAR_RE = re.compile(r"\b(20\d\d)\b")
 
 
-def _state_in_title(title: str) -> str | None:
+def state_in_title(title: str) -> str | None:
+    """USPS code of the (longest) US state name in `title`, or None."""
     for name in sorted(STATE_ABBREVIATIONS, key=len, reverse=True):
         if re.search(rf"\b{re.escape(name)}\b", title, re.IGNORECASE):
             return STATE_ABBREVIATIONS[name]
@@ -130,7 +131,7 @@ def index_senate_events(events: list[dict]) -> dict[str, list[dict]]:
     for ev in events:
         if not is_2026_general_event(ev):
             continue
-        state = _state_in_title(ev.get("title") or "")
+        state = state_in_title(ev.get("title") or "")
         if state:
             index.setdefault(state, []).append(ev)
     return index

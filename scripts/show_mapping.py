@@ -219,6 +219,7 @@ async def build_reports(
             r.warnings = ["no row in config/market_map.csv"]
         else:
             r.warnings = review_warnings(
+                sig_state=c["state"],
                 sig_bid=r.sig_price.get("bestBid"),
                 sig_ask=r.sig_price.get("bestAsk"),
                 polarity=r.map_row.get("polarity", ""),

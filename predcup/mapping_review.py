@@ -15,6 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from predcup.market_map import state_in_title
 from predcup.venues.kalshi import KalshiEvent, KalshiMarket
 
 KNOWN_POLARITIES = ("same", "inverted")
@@ -98,6 +99,7 @@ def kalshi_mid_in_sig_terms(kalshi: KalshiMarket, polarity: str) -> float | None
 
 def review_warnings(
     *,
+    sig_state: str,
     sig_bid: float | None,
     sig_ask: float | None,
     polarity: str,
@@ -126,6 +128,16 @@ def review_warnings(
         warnings.append(f"looks like a PRIMARY/nominee contract (mentions {', '.join(hits)})")
     elif any(kw in kalshi.rules_primary.lower() for kw in _NOT_GENERAL_ELECTION):
         warnings.append("rules text mentions primary/nominee - check this is the general election")
+
+    # Wrong state. Kalshi tickers can carry the wrong state code (SENATELA-26
+    # is the Kentucky race), so the event title is what counts.
+    if sig_state and sig_state != "US":
+        title = event.title if event else kalshi.title
+        title_state = state_in_title(title)
+        if title_state is None:
+            warnings.append(f"Kalshi event title {title!r} names no state; SIG race is {sig_state}")
+        elif title_state != sig_state:
+            warnings.append(f"STATE MISMATCH: Kalshi event title {title!r} is {title_state}, SIG race is {sig_state}")
 
     # Not the 2026 contest. Only titles/tickers are scanned for years: rules
     # text legitimately mentions e.g. a January 2027 swearing-in.
