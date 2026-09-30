@@ -73,22 +73,30 @@ class SpyVenue(MockExchange):
     def __init__(self):
         super().__init__()
         self.batches: list[list[Order]] = []
-        self.cancel_alls = 0
+        self.cancel_scopes: list[tuple[str | None, str | None]] = []
 
     async def place_batch(self, orders, batch_key):
         self.batches.append(list(orders))
         return await super().place_batch(orders, batch_key)
 
     async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
-        self.cancel_alls += 1
+        self.cancel_scopes.append((exchange_id, market_id))
         return await super().cancel_all(tournament_id, exchange_id, market_id)
+
+
+def upd(*orders, fv=FV):
+    """{exchange_id: [(order, fv), ...]} for router.requote."""
+    out: dict = {}
+    for o in orders:
+        out.setdefault(o.exchange_id, []).append((o, fv))
+    return out
 
 
 def test_risk_denial_means_nothing_reaches_the_venue(tmp_path):
     spy = SpyVenue()
     deny = DenyAll()
     router, *_ = make(tmp_path, venue=spy, risk=deny)
-    res = run(router.replace_all([(order("a"), FV), (order("b", action="sell", price=0.51), FV)], NOW))
+    res = run(router.requote(upd(order("a"), order("b", action="sell", price=0.51)), NOW))
     assert deny.checked == 2
     assert spy.batches == [] and res.placed == 0
 
@@ -96,29 +104,57 @@ def test_risk_denial_means_nothing_reaches_the_venue(tmp_path):
 def test_shadow_mode_places_and_cancels_nothing_but_logs(tmp_path):
     spy = SpyVenue()
     router, _, store, *_ = make(tmp_path, venue=spy, shadow=True)
-    res = run(router.replace_all([(order("a"), FV)], NOW))
-    assert spy.batches == [] and spy.cancel_alls == 0
+    res = run(router.requote(upd(order("a")), NOW))
+    assert spy.batches == [] and spy.cancel_scopes == []
     assert res.shadow and res.approved == 1 and res.placed == 0
     ev = store.all_events("shadow_quote")
     assert ev[0]["payload"]["price"] == 0.49 and ev[0]["payload"]["fair_value"] == 0.5
+    assert store.all_events("shadow_cancel")[0]["payload"]["exchange_id"] == "e1"
 
 
 def test_shadow_mode_still_runs_risk_and_logs_rejections(tmp_path):
     router, _, store, *_ = make(tmp_path, shadow=True)
-    far = order("a", price=0.30)  # 20 points from fair value 0.5
-    res = run(router.replace_all([(far, FV)], NOW))
+    res = run(router.requote(upd(order("a", price=0.30)), NOW))  # 20 points from fair value 0.5
     assert res.approved == 0
     assert store.all_events("risk_rejection")[0]["payload"]["reason"].startswith("price deviates")
 
 
-def test_live_cancels_then_places_one_batch(tmp_path):
+def test_live_cancels_only_the_requoted_market_then_places_one_batch(tmp_path):
     spy = SpyVenue()
     router, _, store, *_ = make(tmp_path, venue=spy)
-    res = run(router.replace_all([(order("a"), FV), (order("b", action="sell", price=0.51), FV)], NOW))
-    assert spy.cancel_alls == 1 and len(spy.batches) == 1 and len(spy.batches[0]) == 2
-    assert res.placed == 2
-    assert len(run(spy.get_open_orders(TID))) == 2
+    res = run(router.requote(upd(order("a"), order("b", action="sell", price=0.51)), NOW))
+    assert spy.cancel_scopes == [("e1", None)]
+    assert len(spy.batches) == 1 and len(spy.batches[0]) == 2
+    assert res.placed == 2 and res.done == {"e1"}
     assert len(store.all_events("order")) == 2
+
+
+def test_manual_orders_in_other_markets_survive_a_requote(tmp_path):
+    spy = SpyVenue()
+    router, *_ = make(tmp_path, venue=spy)
+    manual = run(spy.place_order(order("manual", exchange_id="e9", market_id="m9")))
+    run(router.requote(upd(order("a")), NOW))
+    run(router.requote(upd(order("b")), NOW))
+    assert manual.id in {o.id for o in run(spy.get_open_orders(TID))}
+    assert all(scope == ("e1", None) for scope in spy.cancel_scopes)
+
+
+def test_router_never_cancels_tournament_wide(tmp_path):
+    spy = SpyVenue()
+    router, *_ = make(tmp_path, venue=spy)
+    run(router.requote(upd(order("a"), order("c", exchange_id="e2", market_id="m2")), NOW))
+    run(router.requote({"e1": [], "e2": []}, NOW))  # pull both
+    assert (None, None) not in spy.cancel_scopes
+    assert sorted(spy.cancel_scopes) == [("e1", None), ("e1", None), ("e2", None), ("e2", None)]
+
+
+def test_empty_update_pulls_that_market(tmp_path):
+    spy = SpyVenue()
+    router, *_ = make(tmp_path, venue=spy)
+    run(router.requote(upd(order("a"), order("c", exchange_id="e2", market_id="m2")), NOW))
+    res = run(router.requote({"e2": []}, NOW))
+    assert {o.exchange_id for o in run(spy.get_open_orders(TID))} == {"e1"}
+    assert res.done == {"e2"}
 
 
 def test_swept_quotes_stay_counted_until_reconciliation_releases_them(tmp_path):
@@ -126,14 +162,14 @@ def test_swept_quotes_stay_counted_until_reconciliation_releases_them(tmp_path):
     # moves into positions at the next clean reconciliation.
     spy = SpyVenue()
     router, _, _, _, _, risk = make(tmp_path, venue=spy)
-    run(router.replace_all([(order("a"), FV)], NOW))
-    run(router.replace_all([(order("b"), FV)], NOW))
+    run(router.requote(upd(order("a")), NOW))
+    run(router.requote(upd(order("b")), NOW))
     assert len(run(spy.get_open_orders(TID))) == 1
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
     assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.OPEN}
     snapshot = router.swept_snapshot()
     assert snapshot == ["a"]
-    run(router.replace_all([(order("c"), FV)], NOW))  # sweeps b after the snapshot
+    run(router.requote(upd(order("c")), NOW))  # sweeps b after the snapshot
     router.release_swept(snapshot)
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
     assert statuses == {"a": OrderStatus.CANCELLED, "b": OrderStatus.OPEN, "c": OrderStatus.OPEN}
@@ -143,23 +179,19 @@ def test_swept_quotes_stay_counted_until_reconciliation_releases_them(tmp_path):
 def test_more_than_50_orders_are_split_into_batches(tmp_path):
     spy = SpyVenue()
     router, *_ = make(tmp_path, venue=spy)
-    orders = [(order(f"k{i}", exchange_id=f"e{i}", market_id=f"m{i}"), FV) for i in range(60)]
-    run(router.replace_all(orders, NOW))
+    run(router.requote(upd(*[order(f"k{i}", exchange_id=f"e{i}", market_id=f"m{i}") for i in range(60)]), NOW))
     assert [len(b) for b in spy.batches] == [50, 10]
 
 
-def test_orders_left_open_after_cancel_all_block_reposting(tmp_path):
+def test_market_with_orders_left_after_cancel_is_not_reposted_others_are(tmp_path):
     spy = SpyVenue()
     router, _, _, alerts, *_ = make(tmp_path, venue=spy)
-    run(router.replace_all([(order("a"), FV)], NOW))
-    live_id = run(spy.get_open_orders(TID))[0].id
-    spy.configure_cancel_all_to_silently_miss({live_id})
-
-    # MockExchange reports remaining=0 even when it misses; the router must
-    # still confirm via get_open_orders before re-posting.
-    res = run(router.replace_all([(order("b"), FV)], NOW))
-    assert res.placed == 0 and "remain" in res.blocked
-    assert len(spy.batches) == 1
+    run(router.requote(upd(order("a"), order("c", exchange_id="e2", market_id="m2")), NOW))
+    stuck = next(o.id for o in run(spy.get_open_orders(TID)) if o.exchange_id == "e1")
+    spy.configure_cancel_all_to_silently_miss({stuck})
+    res = run(router.requote(upd(order("b"), order("d", exchange_id="e2", market_id="m2")), NOW))
+    assert res.done == {"e2"} and res.placed == 1
+    assert [o.exchange_id for o in spy.batches[-1]] == ["e2"]
     assert any("remain" in m for m in alerts.messages)
 
 
@@ -173,7 +205,7 @@ class RejectingVenue(SpyVenue):
 def test_item_4xx_halts_that_market_via_risk(tmp_path):
     v = RejectingVenue()
     router, _, _, alerts, _, risk = make(tmp_path, venue=v)
-    run(router.replace_all([(order("a"), FV), (order("b", market_id="m2", exchange_id="e2"), FV)], NOW))
+    run(router.requote(upd(order("a"), order("b", market_id="m2", exchange_id="e2")), NOW))
     assert risk.is_market_halted("m2") and not risk.is_market_halted("m1")
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
     assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.REJECTED}
@@ -186,12 +218,11 @@ class UnknownVenue(SpyVenue):
 
 def test_status_unknown_halts_quoting_until_reconciled(tmp_path):
     router, _, _, alerts, control, risk = make(tmp_path, venue=UnknownVenue())
-    run(router.replace_all([(order("a"), FV)], NOW))
+    run(router.requote(upd(order("a")), NOW))
     assert router.blocked
-    # Exposure stays counted (PENDING) until reconciliation says otherwise.
     assert [o.status for o in risk._tracked_orders()] == [OrderStatus.PENDING]
     assert any("unknown" in m.lower() for m in alerts.messages)
-    res = run(router.replace_all([(order("b"), FV)], NOW))
+    res = run(router.requote(upd(order("b")), NOW))
     assert res.placed == 0 and res.blocked
     router.clear_block("reconciled")
     assert not router.blocked
@@ -204,7 +235,7 @@ class ValidationVenue(SpyVenue):
 
 def test_whole_batch_rejection_halts_trading(tmp_path):
     router, _, _, alerts, control, risk = make(tmp_path, venue=ValidationVenue())
-    run(router.replace_all([(order("a"), FV)], NOW))
+    run(router.requote(upd(order("a")), NOW))
     assert control.halted and "VALIDATION_ERROR" in control.reason
     assert [o.status for o in risk._tracked_orders()] == [OrderStatus.REJECTED]
 
@@ -213,14 +244,14 @@ def test_halted_control_blocks_everything(tmp_path):
     spy = SpyVenue()
     router, _, _, _, control, _ = make(tmp_path, venue=spy)
     control.halt("KILL file")
-    res = run(router.replace_all([(order("a"), FV)], NOW))
-    assert res.placed == 0 and spy.batches == [] and spy.cancel_alls == 0
+    res = run(router.requote(upd(order("a")), NOW))
+    assert res.placed == 0 and spy.batches == [] and spy.cancel_scopes == []
 
 
 def test_stale_fair_value_is_passed_to_risk_as_age(tmp_path):
     router, _, store, *_ = make(tmp_path, shadow=True)
     old = FairValue(ok=True, value=0.5, uncertainty=0.01, as_of=NOW - timedelta(seconds=90))
-    res = run(router.replace_all([(order("a"), old)], NOW))
+    res = run(router.requote(upd(order("a"), fv=old), NOW))
     assert res.approved == 0
     assert store.all_events("risk_rejection")[0]["payload"]["reason"] == "stale outside data"
 
@@ -228,4 +259,4 @@ def test_stale_fair_value_is_passed_to_risk_as_age(tmp_path):
 def test_unavailable_fair_value_is_never_sent(tmp_path):
     router, *_ = make(tmp_path, shadow=True)
     with pytest.raises(ValueError):
-        run(router.replace_all([(order("a"), FairValue.none("stale"))], NOW))
+        run(router.requote(upd(order("a"), fv=FairValue.none("stale")), NOW))

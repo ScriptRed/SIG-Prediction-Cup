@@ -2,11 +2,14 @@
 place_order / place_batch (CLAUDE.md hard rule 1; enforced structurally by
 tests/test_order_path.py).
 
-replace_all() is the re-quote primitive (CLAUDE.md platform rules):
-tournament-scoped cancel-all -> confirm via GET /orders?status=open that
-nothing remains -> risk.check() every new order -> post the approved ones
-in batches of <= 50. Orders never stack: if anything is still open after
-cancel-all, nothing is posted and a person is alerted.
+requote() is the re-quote primitive (CLAUDE.md platform rules): cancel-all
+scoped to each re-quoted market's exchangeId -> confirm via one GET
+/orders?status=open -> risk.check() every new order -> post the approved
+ones in batches of <= 50. Orders never stack: a market that still shows
+open orders after its cancel is not re-posted, and a person is alerted.
+The router never cancels tournament-wide: that is only the kill switch
+and shutdown (RiskManager.kill_switch), so manual orders in markets the
+bot doesn't quote survive re-quotes.
 
 Shadow mode runs the same risk checks and logs every order it would have
 sent (`shadow_quote`), but never cancels or places anything.
@@ -38,6 +41,7 @@ class RouterResult:
     placed: int = 0
     shadow: bool = False
     blocked: str = ""
+    done: frozenset[str] = frozenset()  # markets whose re-quote went through
 
 
 class OrderRouter:
@@ -59,7 +63,7 @@ class OrderRouter:
         self._shadow = shadow
         self._alerter = alerter
         self._control = control
-        self._live_keys: list[str] = []  # risk tracking keys of our resting quotes
+        self._live_keys: dict[str, list[str]] = {}  # exchange_id -> risk keys of our resting quotes
         self._swept_keys: list[str] = []  # cancelled by cancel-all, not yet reconciled
         self._blocked = ""
 
@@ -106,43 +110,56 @@ class OrderRouter:
                 approved.append((order, fv))
         return approved
 
-    async def replace_all(self, orders_with_fv: list[tuple[Order, FairValue]], now: datetime) -> RouterResult:
+    async def requote(
+        self, updates: dict[str, list[tuple[Order, FairValue]]], now: datetime
+    ) -> RouterResult:
+        """Re-quote the markets in `updates` (exchange_id -> new orders; an
+        empty list pulls that market). Each market is cancelled on its own
+        (cancel-all scoped by exchangeId), so manual orders elsewhere on the
+        account are never touched. One open-orders read confirms the sweep;
+        a market that still shows open orders is not re-posted (alert), the
+        others go out in batches of <= 50."""
         if self._control.halted:
             return RouterResult(blocked=f"halted: {self._control.reason}")
+        all_orders = [ofv for orders in updates.values() for ofv in orders]
 
         if self._shadow:
-            approved = self._approve(orders_with_fv, now)
-            self._store.log("shadow_cancel_all", {"tournament_id": self._tid})
+            approved = self._approve(all_orders, now)
+            for ex in updates:
+                self._store.log("shadow_cancel", {"exchange_id": ex})
             for order, fv in approved:
                 self._store.log("shadow_quote", _order_payload(order, fv))
-            return RouterResult(approved=len(approved), shadow=True)
+            return RouterResult(approved=len(approved), shadow=True, done=frozenset(updates))
 
         if self._blocked:
             return RouterResult(blocked=self._blocked)
+        if not updates:
+            return RouterResult()
 
-        # 1. Pull everything we have resting, and confirm.
+        # 1. Cancel each re-quoted market, then confirm with one read.
         try:
-            result = await self._venue.cancel_all(self._tid)
-            self._store.log("cancel_all", {"cancelled": result.cancelled, "remaining": result.remaining})
+            for ex in updates:
+                result = await self._venue.cancel_all(self._tid, exchange_id=ex)
+                self._store.log("cancel", {"exchange_id": ex, "cancelled": result.cancelled, "remaining": result.remaining})
             still_open = await self._venue.get_open_orders(self._tid)
         except SigApiError as e:
-            self._block(f"cancel-all failed: {e}")
+            self._block(f"cancel failed: {e}")
             return RouterResult(blocked=self._blocked)
-        if still_open:
-            ids = [o.id for o in still_open]
-            msg = f"{len(ids)} order(s) remain open after cancel-all: {ids}; not re-posting"
-            self._store.log("cancel_all_incomplete", {"remaining_order_ids": ids})
-            self._alerter.send(msg)
-            return RouterResult(blocked=msg)
-        # Swept quotes keep counting (they may have filled first) until a
-        # clean reconciliation has moved any fills into positions.
-        self._swept_keys += self._live_keys
-        self._live_keys = []
+        stuck = {o.exchange_id for o in still_open if o.exchange_id in updates}
+        if stuck:
+            ids = [o.id for o in still_open if o.exchange_id in stuck]
+            self._store.log("cancel_incomplete", {"exchange_ids": sorted(stuck), "remaining_order_ids": ids})
+            self._alerter.send(f"{len(ids)} order(s) remain open after cancel in {sorted(stuck)}; not re-posting there")
+        done = frozenset(ex for ex in updates if ex not in stuck)
+        for ex in (ex for ex in updates if ex in done):  # input order: deterministic batches
+            # Swept quotes keep counting (they may have filled first) until a
+            # clean reconciliation has moved any fills into positions.
+            self._swept_keys += self._live_keys.pop(ex, [])
 
         # 2. Risk-check and record each new order before it is sent, so
         # orders in the same batch count against each other's limits.
         approved = []
-        for order, fv in self._approve(orders_with_fv, now):
+        for order, fv in self._approve([ofv for ex in updates if ex in done for ofv in updates[ex]], now):
             self._risk.record_order(order)  # PENDING, keyed by idempotency key
             approved.append(order)
 
@@ -175,7 +192,7 @@ class OrderRouter:
                 if r.ok:
                     self._risk.confirm_order_state(key, r.order.status)
                     if r.order.status in (OrderStatus.OPEN, OrderStatus.PENDING):
-                        self._live_keys.append(key)
+                        self._live_keys.setdefault(r.order.exchange_id, []).append(key)
                     placed += 1
                     self._store.log("order", {**_order_payload(r.order, None), "order_id": r.order.id,
                                               "status": r.order.status.value})  # fmt: skip
@@ -184,7 +201,7 @@ class OrderRouter:
                     self._store.log("order_failed", {"key": key, "status": r.status, "code": r.code, "message": r.message})
                     if 400 <= r.status < 500 and r.status != 429 and r.order.market_id:
                         self._risk.record_order_rejection(r.order.market_id, r.status, r.code, r.message)
-        return RouterResult(approved=len(approved), placed=placed)
+        return RouterResult(approved=len(approved), placed=placed, done=done, blocked=self._blocked)
 
 
 def _order_payload(order: Order, fv: FairValue | None) -> dict:

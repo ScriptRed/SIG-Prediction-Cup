@@ -140,7 +140,7 @@ def test_kalshi_outage_makes_fair_value_go_stale_and_quotes_stop(tmp_path):
     assert store.all_events("kalshi_poll_failed")
     last_fv = store.all_events("fair_value")[-1]["payload"]
     assert last_fv["value"] is None and last_fv["reason"].startswith("stale")
-    assert len(store.all_events("shadow_cancel_all")) == 2  # second cycle pulls everything
+    assert [e["payload"]["exchange_id"] for e in store.all_events("shadow_cancel")] == ["1068", "1068"]  # post, then pull
 
 
 def test_request_kill_in_shadow_halts_and_logs(tmp_path):

@@ -11,12 +11,12 @@ exceeds the risk band (risk.max_price_deviation_from_fair_value). With
 post_only the quote backs off one tick behind the opposite SIG best price
 rather than crossing it.
 
-Each cycle re-quotes everything at once when anything changed (fair value
-moved >= requote_move, a market gained or lost its fair value, or the
-quotes are due for refresh before their short expiry): one tournament
-cancel-all, a confirm read, and batched posts through the OrderRouter. A
-market with no fair value simply isn't in the next set, so its quotes are
-pulled. Blackout windows (quoter.pull_quotes_before_events) post nothing.
+Each cycle re-quotes only the markets that need it: fair value moved >=
+requote_move, position changed, quotes due for refresh before their short
+expiry, or a market gained or lost its fair value (then it is pulled).
+The OrderRouter cancels each of those markets on its own and posts the
+new quotes in one batch. Blackout windows (quoter.pull_quotes_before_events)
+pull everything and post nothing.
 """
 
 from __future__ import annotations
@@ -143,6 +143,13 @@ class CycleReport:
 BookReader = Callable[[list[str]], Awaitable[dict[str, tuple[float | None, float | None]]]]
 
 
+@dataclass(frozen=True)
+class _Posted:
+    fair_value: float
+    at: datetime
+    position: float
+
+
 class Quoter:
     def __init__(
         self,
@@ -162,19 +169,18 @@ class Quoter:
         self._cfg = cfg
         self._tid = tournament_id
         self._control = control
-        self._posted_fv: dict[str, float] | None = None
-        self._last_post: datetime | None = None
+        self._posted: dict[str, _Posted] = {}  # markets with our quotes resting
 
-    def _due(self, desired_fv: dict[str, float], now: datetime) -> str:
-        if self._posted_fv is None or self._last_post is None:
-            return "first cycle"
-        if set(desired_fv) != set(self._posted_fv):
-            return "market set changed"
-        if (now - self._last_post).total_seconds() >= self._cfg.refresh_interval_seconds:
+    def _due(self, ex: str, fv: float, position: float, now: datetime) -> str:
+        posted = self._posted.get(ex)
+        if posted is None:
+            return "new"
+        if (now - posted.at).total_seconds() >= self._cfg.refresh_interval_seconds:
             return "refresh before expiry"
-        for ex, v in desired_fv.items():
-            if abs(v - self._posted_fv[ex]) >= self._cfg.requote_move - _EPS:
-                return f"fair value moved on {ex}"
+        if abs(fv - posted.fair_value) >= self._cfg.requote_move - _EPS:
+            return "fair value moved"
+        if position != posted.position:
+            return "position changed"
         return ""
 
     def _orders(self, t: QuoteTarget, q: TwoSidedQuote, now: datetime) -> list[Order]:
@@ -189,14 +195,24 @@ class Quoter:
             out.append(Order(**common, action="sell", price=q.ask, idempotency_key=new_idempotency_key()))
         return out
 
+    async def _send(self, updates: dict[str, list[tuple[Order, FairValue]]], state: dict[str, _Posted], now: datetime) -> CycleReport:
+        if not updates:
+            return CycleReport(False, markets=len(self._posted), reason="nothing due")
+        result = await self._router.requote(updates, now)
+        for ex in result.done:
+            if updates[ex]:
+                self._posted[ex] = state[ex]
+            else:
+                self._posted.pop(ex, None)
+        return CycleReport(True, markets=len(updates), orders=sum(len(v) for v in updates.values()),
+                           reason=result.blocked or "requoted")  # fmt: skip
+
     async def cycle(self, targets: list[QuoteTarget], now: datetime) -> CycleReport:
         if self._control.halted:
             return CycleReport(False, reason=f"halted: {self._control.reason}")
         if in_blackout(now, self._cfg.blackouts):
-            if self._posted_fv != {}:  # anything (or unknown) resting -> pull it
-                await self._router.replace_all([], now)
-                self._posted_fv, self._last_post = {}, now
-            return CycleReport(False, reason="blackout window")
+            report = await self._send({ex: [] for ex in self._posted}, {}, now)
+            return CycleReport(report.requoted, reason="blackout window")
 
         targets = targets[: self._cfg.max_markets]
         live = [(t, self._fair_values.current(t.exchange_id)) for t in targets]
@@ -204,20 +220,20 @@ class Quoter:
         books = await self._books([t.exchange_id for t, _ in live]) if live else {}
         positions = self._positions()
 
-        orders_with_fv: list[tuple[Order, FairValue]] = []
-        desired_fv: dict[str, float] = {}
+        updates: dict[str, list[tuple[Order, FairValue]]] = {}
+        state: dict[str, _Posted] = {}
+        quoted: set[str] = set()
         for t, fv in live:
+            position = positions.get(t.exchange_id, 0)
             best_bid, best_ask = books.get(t.exchange_id, (None, None))
-            q = compute_quote(fv, positions.get(t.exchange_id, 0), best_bid, best_ask, self._cfg)
-            orders = self._orders(t, q, now)
-            if orders:
-                desired_fv[t.exchange_id] = fv.value  # type: ignore[assignment]
-                orders_with_fv += [(o, fv) for o in orders]
-
-        reason = self._due(desired_fv, now)
-        if not reason:
-            return CycleReport(False, markets=len(desired_fv), reason="nothing changed")
-        result = await self._router.replace_all(orders_with_fv, now)
-        if not result.blocked:
-            self._posted_fv, self._last_post = desired_fv, now
-        return CycleReport(True, markets=len(desired_fv), orders=len(orders_with_fv), reason=reason)
+            q = compute_quote(fv, position, best_bid, best_ask, self._cfg)
+            if q.bid is None and q.ask is None:
+                continue
+            quoted.add(t.exchange_id)
+            if self._due(t.exchange_id, fv.value, position, now):  # type: ignore[arg-type]
+                updates[t.exchange_id] = [(o, fv) for o in self._orders(t, q, now)]
+                state[t.exchange_id] = _Posted(fv.value, now, position)  # type: ignore[arg-type]
+        for ex in self._posted:
+            if ex not in quoted:
+                updates[ex] = []  # lost its fair value or quote: pull it
+        return await self._send(updates, state, now)

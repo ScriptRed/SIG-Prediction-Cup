@@ -10,7 +10,10 @@
 - [x] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry) + `orders.py` router (the only order path; shadow mode) + `control.py` halt. Exposure gap closed in step 8: positions now count in risk, and swept quotes keep counting until a clean reconciliation
 - [x] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram): `python -m predcup.main`. Live mode refused in code (`predcup.app.LIVE_ENABLED = False`). Safety-branch hooks: `App.request_kill(reason)`, `App.reset_ramp(reason)`, injected `alerter`, `App.add_task(factory)`
 - [x] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`): syncs fills first (manual trades included), feeds positions into risk exposure, releases swept quotes; mismatch halts (live) or alerts (shadow). Fill sign convention is a `TODO(api)` reading, fail-closed; confirm on the first real fill
-- [ ] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py` — built in a separate session
+- [x] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py`: merged 2026-09-30, one `App.kill` path (latched `RiskManager.kill`), shutdown cancels all Cup orders (live) in `App.serve`'s finally; restart-after-kill in `docs/deploy.md`
+- [x] Per-market cancel scope: re-quotes cancel by `exchangeId`; tournament-wide only in kill switch and shutdown
+- [ ] Manual trading coexists: all account fills reconciled, `trading.manual_only` never quoted, manual positions in risk
+- [ ] Go-live gate written into LAUNCH_CHECKLIST §C
 - [ ] Multi-hour run against the mock exchange: harness `python -m sim.run_mock --hours 3` done (real App in live mode against MockExchange only, simulated Kalshi, random fills, injected Kalshi outages, invariant checks). 3-min smoke run passed 2026-09-30; a 2 h pre-merge soak started the same evening; the real multi-hour run follows the safety merge
 
 

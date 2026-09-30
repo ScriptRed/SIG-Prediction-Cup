@@ -36,3 +36,21 @@ def test_only_the_order_router_places_orders():
 def test_router_calls_risk_check_before_placing():
     src = (ROOT / "predcup/orders.py").read_text()
     assert src.index("self._risk.check(") < src.index(".place_batch(")
+
+
+def test_tournament_wide_cancel_all_only_in_kill_switch_and_shutdown():
+    """The re-quote path cancels by exchange; a scope-less cancel_all(tid)
+    appears only in RiskManager.kill_switch (used by kill and shutdown)."""
+    offenders = []
+    for base in ("predcup", "scripts", "sim"):
+        for path in (ROOT / base).rglob("*.py"):
+            rel = path.relative_to(ROOT).as_posix()
+            if rel.startswith(ALLOWED_DIRS):
+                continue
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "cancel_all":
+                    scoped = any(k.arg in ("exchange_id", "market_id") for k in node.keywords) or len(node.args) > 1
+                    if not scoped and rel != "predcup/risk.py":
+                        offenders.append(f"{rel}:{node.lineno}")
+    assert offenders == [], offenders
