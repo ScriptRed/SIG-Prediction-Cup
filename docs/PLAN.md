@@ -5,7 +5,7 @@
 - [x] NH/VT Governor Kalshi mapping (VT → GOVPARTYVT-26; NH stays on GOVPARTYNH-28, which is the 2026 race)
 - [x] launch_report: tradeable-edge columns, unmapped-race section, "trade by hand at the open" list
 - [x] LAUNCH_CHECKLIST §D: SIG seed quotes vs Kalshi moves
-- [ ] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()`
+- [x] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()` (orders tested against a mock transport only; reads checked live)
 - [ ] `fairvalue.py` v1 (Kalshi mid, verified Tier A only)
 - [ ] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry)
 - [ ] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram)
