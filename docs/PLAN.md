@@ -13,7 +13,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [ ] 1. `models.py` (done) + `store.py` (`events_log`, `ramp_state`, `orders`, `fills`, `positions` done — markets, market_map, external_prices, fair_values tables still open)
 - [x] 2. `venues/base.py` + `sim/mock_exchange.py`
 - [ ] 3. `venues/kalshi.py` + `venues/polymarket.py` (read-only, poll every 5–15 s). Minimal `kalshi.py` done (GET market/event, parsed per `docs/kalshi/openapi.yaml`); polling + `Venue` interface still open
-- [ ] 4. `config/market_map.csv` (Claude drafts, human verifies every row)
+- [ ] 4. `config/market_map.csv` (Claude drafts, human verifies every row). Senate redrafted 2026-09-30: Kalshi lists 2026 Senate generals as `SENATE<ST>-26` events (candidate-named YES labels, party-based rules; specials `SENATE<ST>S`, Louisiana `KXSENATELA-26NOV`; `SENATELA-26` is the Kentucky race), matched by event title — all 70 state Senate rows now have a Kalshi ticker, none verified
 - [x] 4a. **Launch-critical:** `scripts/show_mapping.py` for hand-verifying the map race by race: SIG side (Cup book, rules text or an explicit "none"), mapped Kalshi market (titles, outcomes, rules, dates, bid/ask, volume), polarity in words, warnings (primary/non-2026 contract, mids > 10 pts apart after polarity, Kalshi spread > 5 pts, low volume; thresholds in `settings.yaml` `mapping_review`). `--list` shows every race's tier/verified/confidence; `--mark-verified` sets `verified=true, tier=A` on that race's rows only after a typed `yes`. GET-only against both venues
 - [ ] 5. `fairvalue.py` v1
 - [ ] 6. `venues/sig.py` read-only, then order placement

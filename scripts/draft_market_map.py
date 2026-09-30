@@ -4,12 +4,19 @@ matching, no LLM - CLAUDE.md Hard Rule 2). Every row is written with
 verified=False; a human must hand-check each launch market before it's
 trusted for fair value (docs/PLAN.md Stage 1 step 4, LAUNCH_CHECKLIST.md).
 
-    python -m scripts.draft_market_map [--markets data/cup_markets.csv]
+    python -m scripts.draft_market_map [--markets data/cup_markets.csv] [--offices Senate]
 
-Kalshi: public API, no auth (docs/kalshi/ not yet saved locally - endpoints
-discovered live and used as observed, not guessed):
+--offices redrafts only those offices' rows; every other row is copied
+from the existing map unchanged. A row already verified=true is never
+redrafted.
+
+Kalshi: public API, no auth (docs/kalshi/openapi.yaml):
   https://api.elections.kalshi.com/trade-api/v2/series?category=Elections
   https://api.elections.kalshi.com/trade-api/v2/markets?series_ticker=...
+  https://api.elections.kalshi.com/trade-api/v2/events?series_ticker=...&with_nested_markets=true
+Governors match GOVPARTY<ST> series by party keyword; state Senate races
+match SENATE<ST>-26 events by event title (predcup.market_map, Kalshi
+Senate section).
 Polymarket: public Gamma API, no auth (CLAUDE.md architecture doc):
   https://gamma-api.polymarket.com/public-search?q=...
 
@@ -29,7 +36,13 @@ from collections import defaultdict
 import httpx
 
 from predcup.cup_markets import STATE_ABBREVIATIONS
-from predcup.market_map import ExternalMarket, build_row, match_party
+from predcup.market_map import (
+    ExternalMarket,
+    build_row,
+    index_senate_events,
+    match_party,
+    match_senate_party,
+)
 
 KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 POLY_BASE = "https://gamma-api.polymarket.com"
@@ -107,6 +120,45 @@ def fetch_kalshi_series_markets(client: httpx.Client, series_ticker: str) -> lis
     )
     time.sleep(REQUEST_DELAY_SECONDS)
     return resp.json().get("markets", [])
+
+
+# Series that can hold a state Senate general election: SENATE<ST>, the
+# special-election SENATE<ST>S, and KX-prefixed ones (KXSENATELA). Two-letter
+# codes only, so the KXSENATE<ST>D/R nominee series are not fetched.
+_SENATE_SERIES_RE = re.compile(r"^(KX)?SENATE[A-Z]{2}S?$")
+
+
+def fetch_kalshi_senate_events(client: httpx.Client, series: list[dict]) -> list[dict]:
+    events: list[dict] = []
+    for s in series:
+        if not _SENATE_SERIES_RE.match(s["ticker"]):
+            continue
+        resp = _get_with_retry(
+            client,
+            f"{KALSHI_BASE}/events",
+            params={"series_ticker": s["ticker"], "with_nested_markets": "true"},
+        )
+        time.sleep(REQUEST_DELAY_SECONDS)
+        events.extend(resp.json().get("events") or [])
+    return events
+
+
+def kalshi_senate_match(senate_index: dict[str, list[dict]], state: str, party: str) -> tuple[str | None, float, str]:
+    """(ticker, confidence, note) for a state Senate race."""
+    evs = senate_index.get(state, [])
+    if len(evs) != 1:
+        found = ", ".join(e["event_ticker"] for e in evs) or "none"
+        return None, 0.0, f"Kalshi 2026 Senate general event: expected exactly one, found {found}"
+    ev = evs[0]
+    hit = match_senate_party(ev.get("markets") or [], party)
+    if hit is None:
+        return None, 0.0, f"Kalshi event {ev['event_ticker']} has no unambiguous {party} market"
+    label = next((m.get("yes_sub_title") for m in ev["markets"] if m["ticker"] == hit.ref), "")
+    if party == "I":
+        return hit.ref, 0.6, (
+            f"Kalshi {hit.ref} is candidate-specific ({label} sworn in), SIG is any Independent"
+        )
+    return hit.ref, 0.9, f"Kalshi YES label {label!r} but rules resolve on party sworn in"
 
 
 def kalshi_match_for_race(
@@ -219,47 +271,85 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--markets", default="data/cup_markets.csv")
     parser.add_argument("--output", default="config/market_map.csv")
+    parser.add_argument("--offices", nargs="*", help="redraft only these offices (e.g. Senate)")
     args = parser.parse_args()
 
     markets = load_markets(args.markets)
+    try:
+        existing = {r["platform_id"]: r for r in load_markets(args.output)}
+    except FileNotFoundError:
+        existing = {}
+
+    def keep_existing(m: dict[str, str]) -> bool:
+        old = existing.get(m["id"])
+        if old is None:
+            return False
+        if old.get("verified") == "true":
+            return True
+        return bool(args.offices) and m["office"] not in args.offices
 
     with httpx.Client(timeout=15) as client:
         print("Fetching Kalshi Elections series index...", file=sys.stderr)
         series = fetch_kalshi_elections_series(client)
         gov_index, sen_index = build_kalshi_state_index(series)
         print(f"Kalshi: {len(gov_index)} governor states, {len(sen_index)} senate states indexed", file=sys.stderr)
+        senate_index: dict[str, list[dict]] = {}
+        if any(m["office"] == "Senate" and m["state"] != "US" and not keep_existing(m) for m in markets):
+            senate_index = index_senate_events(fetch_kalshi_senate_events(client, series))
+            print(f"Kalshi: 2026 Senate general events for {len(senate_index)} states", file=sys.stderr)
 
         # Cache per-race external market lookups so each race's several
         # SIG markets (R/D/I) share one Kalshi + one Polymarket call.
         kalshi_cache: dict[str, tuple[list[ExternalMarket], float, str]] = {}
         poly_cache: dict[str, tuple[list[ExternalMarket], float, str]] = {}
 
-        rows = []
+        rows: list[dict[str, str]] = []
         for i, m in enumerate(markets):
+            if keep_existing(m):
+                rows.append(existing[m["id"]])
+                continue
             race_key = m["race_key"]
             office, state, district, party = m["office"], m["state"], m["district"], m["party"]
 
-            if race_key not in kalshi_cache:
-                kalshi_cache[race_key] = kalshi_match_for_race(client, office, state, gov_index, sen_index)
             if race_key not in poly_cache:
                 poly_cache[race_key] = poly_match_for_race(client, office, state, district)
-
-            kalshi_markets, kalshi_conf, kalshi_note = kalshi_cache[race_key]
             poly_markets, poly_conf, poly_note = poly_cache[race_key]
-
-            kalshi_hit = match_party(kalshi_markets, party)
             poly_hit = match_party(poly_markets, party)
+
+            if office == "Senate" and state != "US":
+                kalshi_ref, kalshi_conf, kalshi_note = kalshi_senate_match(senate_index, state, party)
+            else:
+                if race_key not in kalshi_cache:
+                    kalshi_cache[race_key] = kalshi_match_for_race(client, office, state, gov_index, sen_index)
+                kalshi_markets, kalshi_conf, kalshi_note = kalshi_cache[race_key]
+                kalshi_hit = match_party(kalshi_markets, party)
+                kalshi_ref = kalshi_hit.ref if kalshi_hit else None
+                if kalshi_hit:
+                    kalshi_note = ""
+                else:
+                    kalshi_conf = 0.0
 
             row = build_row(
                 platform_id=m["id"],
-                kalshi_ref=kalshi_hit.ref if kalshi_hit else None,
-                kalshi_confidence=kalshi_conf if kalshi_hit else 0.0,
-                kalshi_note="" if kalshi_hit else kalshi_note,
+                kalshi_ref=kalshi_ref,
+                kalshi_confidence=kalshi_conf,
+                kalshi_note=kalshi_note,
                 poly_ref=poly_hit.ref if poly_hit else None,
                 poly_confidence=poly_conf if poly_hit else 0.0,
                 poly_note="" if poly_hit else poly_note,
             )
-            rows.append(row)
+            rows.append(
+                {
+                    "platform_id": row.platform_id,
+                    "kalshi_ticker": row.kalshi_ticker,
+                    "poly_token_id": row.poly_token_id,
+                    "polarity": row.polarity,
+                    "rule_diff_notes": row.rule_diff_notes,
+                    "confidence": str(row.confidence),
+                    "verified": "false",
+                    "tier": "",
+                }
+            )
             if (i + 1) % 20 == 0:
                 print(f"  matched {i + 1}/{len(markets)} markets", file=sys.stderr)
 
@@ -268,23 +358,12 @@ def main() -> int:
         "rule_diff_notes", "confidence", "verified", "tier",
     ]  # fmt: skip
     with open(args.output, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
-        for row in rows:
-            writer.writerow(
-                {
-                    "platform_id": row.platform_id,
-                    "kalshi_ticker": row.kalshi_ticker,
-                    "poly_token_id": row.poly_token_id,
-                    "polarity": row.polarity,
-                    "rule_diff_notes": row.rule_diff_notes,
-                    "confidence": row.confidence,
-                    "verified": "false",
-                    "tier": "",
-                }
-            )
+        writer.writerows(rows)
 
-    print(f"Wrote {len(rows)} rows to {args.output}. Nothing marked verified.")
+    kept = sum(1 for m in markets if keep_existing(m))
+    print(f"Wrote {len(rows)} rows to {args.output} ({kept} copied unchanged). Nothing newly marked verified.")
     return 0
 
 

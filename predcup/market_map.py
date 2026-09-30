@@ -10,7 +10,10 @@ file - no LLM (CLAUDE.md Hard Rule 2 applies to market mapping generally).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+
+from predcup.cup_markets import STATE_ABBREVIATIONS
 
 PARTY_KEYWORDS = {
     "R": ("republican",),
@@ -76,3 +79,81 @@ def build_row(
         rule_diff_notes=notes,
         verified=False,
     )
+
+
+# --- Kalshi Senate (event-based) ------------------------------------------
+#
+# Kalshi's 2026 Senate general elections live in series SENATE<ST> (special
+# elections: SENATE<ST>S; Louisiana: KXSENATELA, event -26NOV), event
+# SENATE<ST>-26, markets -D / -R (independents: a candidate code). The YES
+# label is the candidate's name, but the rules resolve on party ("a
+# representative of the Democratic party is sworn in"), except independents,
+# which are candidate-specific. The same series also holds 2028 events with
+# party-named labels, and the ticker's state code can be wrong (SENATELA-26
+# is titled "Kentucky Senate winner?"), so everything is keyed on the event
+# title. The SENATEPARTY<ST> series the governor-style matcher used have no
+# markets. Observed live 2026-09-30.
+
+_SENATE_EXCLUDE = ("primary", "nominee", "nomination", "runoff", "caucus")
+_YEAR_RE = re.compile(r"\b(20\d\d)\b")
+
+
+def _state_in_title(title: str) -> str | None:
+    for name in sorted(STATE_ABBREVIATIONS, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(name)}\b", title, re.IGNORECASE):
+            return STATE_ABBREVIATIONS[name]
+    return None
+
+
+def _active(markets: list[dict]) -> list[dict]:
+    return [m for m in markets if m.get("status") == "active"]
+
+
+def is_2026_general_event(event: dict) -> bool:
+    """A 2026 Senate general-election event with at least one active market."""
+    text = f"{event.get('title') or ''} {event.get('sub_title') or ''}"
+    if any(kw in text.lower() for kw in _SENATE_EXCLUDE):
+        return False
+    if any(y != "2026" for y in _YEAR_RE.findall(text)):
+        return False
+    parts = event.get("event_ticker", "").split("-")
+    if len(parts) < 2 or not parts[1].startswith("26"):
+        return False
+    return bool(_active(event.get("markets") or []))
+
+
+def index_senate_events(events: list[dict]) -> dict[str, list[dict]]:
+    """state -> 2026 Senate general events, state taken from the event title.
+    More than one event for a state means ambiguous: the caller must not
+    pick one."""
+    index: dict[str, list[dict]] = {}
+    for ev in events:
+        if not is_2026_general_event(ev):
+            continue
+        state = _state_in_title(ev.get("title") or "")
+        if state:
+            index.setdefault(state, []).append(ev)
+    return index
+
+
+def match_senate_party(markets: list[dict], party: str) -> ExternalMarket | None:
+    """D/R: ticker suffix and title must agree. I: exactly one active market
+    that names an independent and isn't the -D/-R market."""
+    active = _active(markets)
+    if party in ("D", "R"):
+        word = "democrat" if party == "D" else "republican"
+        hits = [
+            m for m in active
+            if m["ticker"].endswith(f"-{party}") and word in (m.get("title") or "").lower()
+        ]  # fmt: skip
+    elif party == "I":
+        hits = [
+            m for m in active
+            if not m["ticker"].endswith(("-D", "-R"))
+            and "independent" in f"{m.get('title') or ''} {m.get('subtitle') or ''}".lower()
+        ]  # fmt: skip
+    else:
+        return None
+    if len(hits) != 1:
+        return None
+    return ExternalMarket(ref=hits[0]["ticker"], text=hits[0].get("title") or "")

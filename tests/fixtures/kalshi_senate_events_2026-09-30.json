@@ -1,0 +1,381 @@
+{
+ "SENATEAK": [
+  {
+   "event_ticker": "SENATEAK-28",
+   "series_ticker": "SENATEAK",
+   "title": "Alaska Senate winner? (2028)",
+   "sub_title": "In 2028",
+   "markets": [
+    {
+     "ticker": "SENATEAK-28-D",
+     "event_ticker": "SENATEAK-28",
+     "title": "Will Democratics win the Senate race in Alaska?",
+     "subtitle": "::",
+     "yes_sub_title": "Democratic party",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Alaska for the term beginning in 2029, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEAK-28-R",
+     "event_ticker": "SENATEAK-28",
+     "title": "Will Republicans win the Senate race in Alaska?",
+     "subtitle": ":: Current incumbent: Lisa Murkowski",
+     "yes_sub_title": "Republican party",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Alaska for the term beginning in 2029, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATEAK-26",
+   "series_ticker": "SENATEAK",
+   "title": "Alaska Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATEAK-26-R",
+     "event_ticker": "SENATEAK-26",
+     "title": "Will Republicans win the Senate race in Alaska?",
+     "subtitle": "Republican party:: Current incumbent: Dan Sullivan",
+     "yes_sub_title": "Republican party",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Alaska for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEAK-26-D",
+     "event_ticker": "SENATEAK-26",
+     "title": "Will Democratics win the Senate race in Alaska?",
+     "subtitle": "::",
+     "yes_sub_title": "Democratic party",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Alaska for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "SENATELA": [
+  {
+   "event_ticker": "SENATELA-28",
+   "series_ticker": "SENATELA",
+   "title": "Louisiana Senate winner? (2028)",
+   "sub_title": "In 2028",
+   "markets": [
+    {
+     "ticker": "SENATELA-28-R",
+     "event_ticker": "SENATELA-28",
+     "title": "Will Republicans win the Senate race in Louisiana?",
+     "subtitle": "Republican party:: Current incumbent: John Kennedy",
+     "yes_sub_title": "Republican party",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Louisiana for the term beginning in 2029, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATELA-28-D",
+     "event_ticker": "SENATELA-28",
+     "title": "Will Democratics win the Senate race in Louisiana?",
+     "subtitle": "::",
+     "yes_sub_title": "Democratic party",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Louisiana for the term beginning in 2029, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATELA-26",
+   "series_ticker": "SENATELA",
+   "title": "Kentucky Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATELA-26-R",
+     "event_ticker": "SENATELA-26",
+     "title": "Will Republicans win the Senate race in Kentucky?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Andy Barr",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Kentucky for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATELA-26-D",
+     "event_ticker": "SENATELA-26",
+     "title": "Will Democratics win the Senate race in Kentucky?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Charles Booker",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Kentucky for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "KXSENATELA": [
+  {
+   "event_ticker": "KXSENATELA-26NOV",
+   "series_ticker": "KXSENATELA",
+   "title": "Louisiana Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "KXSENATELA-26NOV-D",
+     "event_ticker": "KXSENATELA-26NOV",
+     "title": "Will Democratics win the Senate race in Louisiana?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Jamie Davis",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Louisiana for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "KXSENATELA-26NOV-R",
+     "event_ticker": "KXSENATELA-26NOV",
+     "title": "Will Republicans win the Senate race in Louisiana?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Julia Letlow",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Louisiana for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "SENATEMA": [
+  {
+   "event_ticker": "SENATEMA-26",
+   "series_ticker": "SENATEMA",
+   "title": "Massachusetts Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATEMA-26-R",
+     "event_ticker": "SENATEMA-26",
+     "title": "Will Republicans win the Senate race in Massachusetts?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "John Deaton",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Massachusetts for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEMA-26-D",
+     "event_ticker": "SENATEMA-26",
+     "title": "Will Democratics win the Senate race in Massachusetts?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Ed Markey",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Massachusetts for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "SENATENE": [
+  {
+   "event_ticker": "SENATENE-26",
+   "series_ticker": "SENATENE",
+   "title": "Nebraska Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATENE-26-R",
+     "event_ticker": "SENATENE-26",
+     "title": "Will Republicans win the Senate race in Nebraska?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Pete Ricketts",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Nebraska for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATENE-26-D",
+     "event_ticker": "SENATENE-26",
+     "title": "Will Democratics win the Senate race in Nebraska?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Cindy Burbank",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Nebraska for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATENE-26-DOSB",
+     "event_ticker": "SENATENE-26",
+     "title": "Will Dan Osborn (as an independent)s win the Senate race in Nebraska?",
+     "subtitle": "Dan Osborn:: Independent",
+     "yes_sub_title": "Dan Osborn",
+     "status": "active",
+     "rules_primary": "If Dan Osborn (as an independent) is sworn in as a Senator of Nebraska for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATENE-24",
+   "series_ticker": "SENATENE",
+   "title": "Who will win the Senate race in Nebraska?",
+   "sub_title": "In 2024",
+   "markets": []
+  }
+ ],
+ "SENATEMT": [
+  {
+   "event_ticker": "SENATEMT-26",
+   "series_ticker": "SENATEMT",
+   "title": "Montana Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATEMT-26-R",
+     "event_ticker": "SENATEMT-26",
+     "title": "Will Republicans win the Senate race in Montana?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Kurt Alme",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Montana for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEMT-26-D",
+     "event_ticker": "SENATEMT-26",
+     "title": "Will Democratics win the Senate race in Montana?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Alani Bankhead",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Montana for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEMT-26-IND",
+     "event_ticker": "SENATEMT-26",
+     "title": "Will Independents win the Senate race in Montana?",
+     "subtitle": "Seth Bodnar:: Independent",
+     "yes_sub_title": "Seth Bodnar",
+     "status": "active",
+     "rules_primary": "If Seth Bodnar (as an Independent) is sworn in as a Senator of Montana for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATEMT-24",
+   "series_ticker": "SENATEMT",
+   "title": "Who will win the Senate race in Montana?",
+   "sub_title": "In 2024",
+   "markets": []
+  }
+ ],
+ "SENATEFL": [
+  {
+   "event_ticker": "SENATEFL-28",
+   "series_ticker": "SENATEFL",
+   "title": "Florida Senate winner? (2028)",
+   "sub_title": "In 2028",
+   "markets": [
+    {
+     "ticker": "SENATEFL-28-D",
+     "event_ticker": "SENATEFL-28",
+     "title": "Will Democratics win the Senate race in Florida?",
+     "subtitle": "::",
+     "yes_sub_title": "Democratic party",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Florida for the term beginning in 2029, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEFL-28-R",
+     "event_ticker": "SENATEFL-28",
+     "title": "Will Republicans win the Senate race in Florida?",
+     "subtitle": "::",
+     "yes_sub_title": "Republican party",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Florida for the term beginning in 2029, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATEFL-24",
+   "series_ticker": "SENATEFL",
+   "title": "Who will win the Senate race in Florida?",
+   "sub_title": "In 2024",
+   "markets": []
+  }
+ ],
+ "SENATEFLS": [
+  {
+   "event_ticker": "SENATEFLS-26",
+   "series_ticker": "SENATEFLS",
+   "title": "Florida Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATEFLS-26-R",
+     "event_ticker": "SENATEFLS-26",
+     "title": "Will Republicans win the Senate race in Florida?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Ashley Moody",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Florida for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEFLS-26-D",
+     "event_ticker": "SENATEFLS-26",
+     "title": "Will Democratics win the Senate race in Florida?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "Angie Nixon",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Florida for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "SENATEID": [
+  {
+   "event_ticker": "SENATEID-28",
+   "series_ticker": "SENATEID",
+   "title": "Idaho Senate winner? (2028)",
+   "sub_title": "In 2028",
+   "markets": [
+    {
+     "ticker": "SENATEID-28-R",
+     "event_ticker": "SENATEID-28",
+     "title": "Will Republicans win the Senate race in Idaho?",
+     "subtitle": ":: Current incumbent: Mike Crapo",
+     "yes_sub_title": "Republican party",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Idaho for the term beginning in 2029, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEID-28-D",
+     "event_ticker": "SENATEID-28",
+     "title": "Will Democratics win the Senate race in Idaho?",
+     "subtitle": "::",
+     "yes_sub_title": "Democratic party",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Idaho for the term beginning in 2029, then the market resolves to Yes."
+    }
+   ]
+  },
+  {
+   "event_ticker": "SENATEID-26",
+   "series_ticker": "SENATEID",
+   "title": "Idaho Senate winner?",
+   "sub_title": "In 2026",
+   "markets": [
+    {
+     "ticker": "SENATEID-26-R",
+     "event_ticker": "SENATEID-26",
+     "title": "Will Republicans win the Senate race in Idaho?",
+     "subtitle": "Republican party:: Republican party",
+     "yes_sub_title": "Jim Risch",
+     "status": "active",
+     "rules_primary": "If a representative of the Republican party is sworn in as a Senator of Idaho for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEID-26-D",
+     "event_ticker": "SENATEID-26",
+     "title": "Will Democratics win the Senate race in Idaho?",
+     "subtitle": "Democratic party:: Democratic party",
+     "yes_sub_title": "David Roth",
+     "status": "active",
+     "rules_primary": "If a representative of the Democratic party is sworn in as a Senator of Idaho for the term beginning in 2027, then the market resolves to Yes."
+    },
+    {
+     "ticker": "SENATEID-26-TACH",
+     "event_ticker": "SENATEID-26",
+     "title": "Will Todd Achilless win the Senate race in Idaho?",
+     "subtitle": "Todd Achilles:: Independent",
+     "yes_sub_title": "Todd Achilles",
+     "status": "active",
+     "rules_primary": "If Todd Achilles is sworn in as a Senator of Idaho for the term beginning in 2027, then the market resolves to Yes."
+    }
+   ]
+  }
+ ],
+ "SENATEPARTYMA": []
+}
