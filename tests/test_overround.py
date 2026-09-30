@@ -90,3 +90,30 @@ def test_race_summary_is_frozen():
     summary = summarize_race("MI-Senate", {"R": 0.45, "D": 0.55})
     with pytest.raises(Exception):
         summary.status = "ok"
+
+
+def test_scan_skips_fusion_races_without_reading_their_books(monkeypatch):
+    import httpx
+
+    from scripts.scan_race_overround import scan
+
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        requested.append(request.url.path)
+        return httpx.Response(200, json={"latestPrice": None, "bestBid": 0.49, "bestAsk": 0.51})
+
+    races = {
+        "NY-Senate": [{"party": "R", "exchange_id": "1"}, {"party": "D", "exchange_id": "2"}],
+        "MI-Senate": [{"party": "R", "exchange_id": "3"}, {"party": "D", "exchange_id": "4"}],
+    }
+    import scripts.scan_race_overround as mod
+
+    monkeypatch.setattr(mod, "REQUEST_DELAY_SECONDS", 0)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        results = {r.race_key: r for r in scan(races, client, {}, "tid", frozenset({"NY-Senate"}))}
+    assert results["NY-Senate"].status == "skipped_fusion"
+    assert results["MI-Senate"].status == "ok"
+    assert all("/exchanges/1/" not in p and "/exchanges/2/" not in p for p in requested)
+    assert len(requested) == 2

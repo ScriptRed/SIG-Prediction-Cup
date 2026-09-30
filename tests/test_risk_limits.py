@@ -55,6 +55,7 @@ def manager(limits, tmp_path):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
 
 
@@ -81,6 +82,7 @@ def test_total_exposure_cap_spans_markets(limits, tmp_path):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
     # Two existing tracked orders in two different markets, each well under
     # the 500 per-market cap, but together near the 900 total cap.
@@ -117,6 +119,7 @@ def test_max_order_size_cap(tmp_path):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
     ok = make_order(quantity=400, price=0.5)  # notional 200
     assert manager.check(ok, fair_value=0.5, outside_data_age_seconds=0).approved

@@ -402,6 +402,7 @@ def make_manager(store, alerter, size_ramp, **limit_overrides):
         tournament_id=TOURNAMENT_ID,
         alerter=alerter,
         size_ramp=size_ramp,
+        fusion_race_keys=frozenset(),
     )
 
 

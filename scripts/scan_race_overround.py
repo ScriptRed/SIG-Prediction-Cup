@@ -24,7 +24,8 @@ import time
 import httpx
 from dotenv import load_dotenv
 
-from predcup.overround import RaceSummary, representative_price, summarize_race
+from predcup.market_map import fusion_race_keys
+from predcup.overround import RaceSummary, representative_price, skipped_fusion, summarize_race
 
 BASE_URL = "https://www.thesuper.market/api/v1"
 CUP_SLUG = "midterm-elections"  # TODO(api): confirm/update if SIG renames it
@@ -81,9 +82,13 @@ def scan(
     client: httpx.Client,
     headers: dict[str, str],
     tournament_id: str,
+    fusion_races: frozenset[str],
 ) -> list[RaceSummary]:
     results = []
     for race_key, markets in sorted(races.items()):
+        if race_key in fusion_races:
+            results.append(skipped_fusion(race_key))
+            continue
         party_prices = {}
         for m in markets:
             party_prices[m["party"]] = fetch_price(
@@ -97,6 +102,7 @@ def scan(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--markets", default="data/cup_markets.csv")
+    parser.add_argument("--map", default="config/market_map.csv")
     args = parser.parse_args()
 
     load_dotenv()
@@ -107,11 +113,15 @@ def main() -> int:
     headers = {"Authorization": f"Bearer {key}"}
 
     races = load_races(args.markets)
+    with open(args.map, newline="") as f:
+        map_rows = list(csv.DictReader(f))
+    cup_rows = [m for ms in races.values() for m in ms]
+    fusion_races = fusion_race_keys(cup_rows, map_rows)
 
     try:
         with httpx.Client(timeout=15) as client:
             tournament_id = fetch_tournament_id(client, headers)
-            results = scan(races, client, headers, tournament_id)
+            results = scan(races, client, headers, tournament_id, fusion_races)
     except httpx.HTTPStatusError as e:
         print(f"SIG API read failed: {e.response.status_code} {e.response.text}", file=sys.stderr)
         return 1
@@ -121,14 +131,17 @@ def main() -> int:
 
     flagged = [r for r in results if r.status == "flagged"]
     insufficient = [r for r in results if r.status == "insufficient_data"]
+    skipped = [r for r in results if r.status == "skipped_fusion"]
     print(
-        f"Scanned {len(results)} races: {len(flagged)} flagged, "
-        f"{len(insufficient)} with insufficient book data"
+        f"Scanned {len(results) - len(skipped)} races: {len(flagged)} flagged, "
+        f"{len(insufficient)} with insufficient book data; {len(skipped)} skipped (fusion_risk)"
     )
     for r in flagged:
         print(f"  FLAG {r.race_key}: {r.sum_points} points  {r.prices}")
     for r in insufficient:
         print(f"  DATA {r.race_key}: missing prices for {r.missing_parties}")
+    for r in skipped:
+        print(f"  SKIP {r.race_key}: fusion_risk - R and D are not complements here")
     return 0
 
 

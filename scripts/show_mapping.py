@@ -190,6 +190,7 @@ def render(r: MarketReport, out: Callable[[str], None]) -> None:
         out(f"     rule_diff_notes: {m.get('rule_diff_notes') or '-'}")
         out(
             f"     confidence {m.get('confidence')}  verified {m.get('verified')}  tier {m.get('tier') or '-'}"
+            f"  fusion_risk {m.get('fusion_risk') or '-'}"
         )
     if r.warnings:
         out("")

@@ -302,8 +302,15 @@ def _is_long(side: str, action: str) -> bool:
 # large enough that idiosyncratic risk there stops being a rounding error.
 _RD_PARTIES = ("R", "D")
 
+# Fusion races (SIG rules, 2026-09-30): a fusion candidate counts for every
+# party on the ticket, so R and D can *both* resolve YES. There R and D are
+# not complements, so R-YES and D-NO (or R-YES and D-YES as a "hedge") must
+# not combine or offset on this axis. Like Independents, a fusion race's
+# orders get their own lane: per-market and total caps only. The set comes
+# from market_map.csv's fusion_risk column (predcup.market_map).
 
-def net_rd_exposure(orders: list[Order]) -> float:
+
+def net_rd_exposure(orders: list[Order], fusion_race_keys: frozenset[str]) -> float:
     """Net directional exposure on the national R-vs-D axis: positive =
     net long Republican (short Democrat) across every race, negative = net
     long Democrat. Only orders with party_id in {"R", "D"} participate.
@@ -313,11 +320,14 @@ def net_rd_exposure(orders: list[Order]) -> float:
     one race and D-NO in a completely different one, because this limit
     exists to cap national correlated exposure, not a single race's
     pairing. Grouping by race_key isn't needed for the arithmetic, only
-    for callers reasoning about *why* two orders combine.
+    for callers reasoning about *why* two orders combine. Orders in
+    `fusion_race_keys` are left out entirely (see above).
     """
     net = 0.0
     for o in orders:
         if not is_exposure_counted(o.status) or o.party_id not in _RD_PARTIES:
+            continue
+        if o.race_key in fusion_race_keys:
             continue
         signed = _order_notional(o) * (1 if _is_long(o.side, o.action) else -1)
         net += signed if o.party_id == "R" else -signed
@@ -345,6 +355,7 @@ class RiskManager:
         tournament_id: str,
         alerter: Alerter,
         size_ramp: SizeRamp,
+        fusion_race_keys: frozenset[str] | None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         if not tournament_id:
@@ -353,6 +364,11 @@ class RiskManager:
         # the ramp is an explicit config change (launch_fraction: 1.0).
         if size_ramp is None:
             raise ValueError("size_ramp is required; RiskManager never runs without one")
+        # Fail closed: an explicit (possibly empty) set, never a default, so a
+        # caller can't forget it and silently net fusion races as R-vs-D.
+        if fusion_race_keys is None:
+            raise ValueError("fusion_race_keys is required (pass frozenset() if no race has fusion risk)")
+        self._fusion_race_keys = frozenset(fusion_race_keys)
         self._limits = limits
         self._bankroll = bankroll
         self._event_store = event_store
@@ -483,10 +499,13 @@ class RiskManager:
         if _market_notional(tracked, order.market_id) + order_notional > market_cap:
             return RiskDecision(False, "exceeds per-market bankroll cap" + ramp_note)
 
-        if order.party_id in _RD_PARTIES:
+        if order.party_id in _RD_PARTIES and not order.race_key:
+            return RiskDecision(False, "R/D order has no race_key; fusion risk can't be checked")
+
+        if order.party_id in _RD_PARTIES and order.race_key not in self._fusion_race_keys:
             party_cap = limits.max_party_exposure_fraction * self._bankroll
             order_signed = order_notional * (1 if _is_long(order.side, order.action) else -1)
-            new_net = net_rd_exposure(tracked) + (
+            new_net = net_rd_exposure(tracked, self._fusion_race_keys) + (
                 order_signed if order.party_id == "R" else -order_signed
             )
             if abs(new_net) > party_cap:

@@ -22,7 +22,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 - [ ] 8. Election-night quote-pull rule: pull quotes in a race on a credible call and in all uncalled races in a state at poll close
 
 ## Stage 2 — 1–7 October (automated market making)
-- [x] 9. `risk.py` + kill switch (tests first)
+- [x] 9. `risk.py` + kill switch (tests first). 2026-09-30: fusion-risk races kept off the net R-vs-D axis (`fusion_race_keys`, required); `main.py` must build that set from `market_map.csv` via `predcup.market_map.fusion_race_keys`
 - [ ] 10. `strategies/quoter.py` (+ optional stink orders)
 - [ ] 10a. Loop-lag metric (`predcup/looplag.py`, done): still to wire — `main.py` starts `run_probe()`, quoter and reconciliation loops call `record()` each iteration. Heavy work (scenario, district model, election-night projection, dashboard) runs in separate processes and hands results over via SQLite (CLAUDE.md "Process split")
 - [ ] 11. Offline test vs mock exchange with replayed Kalshi history

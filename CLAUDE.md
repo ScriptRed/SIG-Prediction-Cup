@@ -44,7 +44,7 @@ predcup/
   docs/                      PROJECT_BRIEF.md, PLAN.md, platform/, kalshi/, polymarket/
   config/
     settings.yaml            limits, thresholds, schedules (no secrets)
-    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence, verified, tier
+    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence, verified, tier, fusion_risk
   predcup/
     models.py                Market, OrderBook, Order, Fill, Position (pydantic)
     store.py                 SQLite persistence
@@ -88,6 +88,7 @@ predcup/
 - **Risk (Phase 1 defaults, in config):** max 5% bankroll per market, max 60% total exposure, per-market max order size, price must be within X points of fair value, daily loss stop 8%, stale-data stop. **Size ramp:** order size and per-market cap start at `risk.size_ramp.launch_fraction` and step up ×`step_multiplier` only after N clean reconciliations; a reconciliation mismatch or unexpected 4xx drops one step and alerts, 429s drop a step only in a burst (> max in window). `RiskManager` refuses to construct without a ramp. Ramp step persists in SQLite; restart resumes one step below. Phase 2 loosens limits only via an explicit config change.
 - **Reconciliation:** compare local positions with `get_positions()` every minute; on mismatch → cancel all, halt, alert.
 - **Netting:** holding YES and buying NO cancels pairs and pays 1 per pair immediately; position logic must model this.
+- **Fusion:** a fusion candidate counts for every party on the ticket (SIG rules), so a race's R and D markets are not guaranteed complements. Races with `fusion_risk=true` in `market_map.csv` are skipped by the parity/overround scanner and kept off `risk.py`'s net R-vs-D axis (own lane, like Independents). `RiskManager` requires the fusion set explicitly; R/D orders without a `race_key` are rejected.
 
 ## Commands
 

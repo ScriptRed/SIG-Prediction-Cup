@@ -60,6 +60,7 @@ def manager(tmp_path):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
 
 

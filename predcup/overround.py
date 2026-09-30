@@ -37,7 +37,7 @@ def representative_price(
 @dataclass(frozen=True)
 class RaceSummary:
     race_key: str
-    status: str  # "ok" / "flagged" / "insufficient_data"
+    status: str  # "ok" / "flagged" / "insufficient_data" / "skipped_fusion"
     sum_points: float | None
     prices: dict[str, float]
     missing_parties: tuple[str, ...] = ()
@@ -66,3 +66,10 @@ def summarize_race(race_key: str, party_prices: dict[str, float | None]) -> Race
         sum_points=sum_points,
         prices=present,
     )
+
+
+def skipped_fusion(race_key: str) -> RaceSummary:
+    """A fusion-risk race: a fusion candidate counts for every party on the
+    ticket, so more than one party's market can resolve YES and the YES
+    prices need not sum to 100. Not scanned at all."""
+    return RaceSummary(race_key=race_key, status="skipped_fusion", sum_points=None, prices={})

@@ -158,3 +158,27 @@ def match_senate_party(markets: list[dict], party: str) -> ExternalMarket | None
     if len(hits) != 1:
         return None
     return ExternalMarket(ref=hits[0]["ticker"], text=hits[0].get("title") or "")
+
+
+# --- Fusion risk ------------------------------------------------------------
+
+
+def fusion_race_keys(cup_rows: list[dict[str, str]], map_rows: list[dict[str, str]]) -> frozenset[str]:
+    """Races where any market_map.csv row has fusion_risk=true. In such a
+    race a fusion candidate counts for every party on the ticket (SIG
+    rules), so R and D markets are not complements: risk.py keeps them off
+    the R-vs-D axis and the parity scanner skips the race. Anything other
+    than "true"/"false" raises rather than being read as false."""
+    race_of = {c["id"]: c["race_key"] for c in cup_rows}
+    keys: set[str] = set()
+    for r in map_rows:
+        if "fusion_risk" not in r:
+            raise ValueError("market_map.csv has no fusion_risk column")
+        value = (r["fusion_risk"] or "").strip().lower()
+        if value not in ("true", "false"):
+            raise ValueError(f"fusion_risk must be true or false, got {r['fusion_risk']!r} (platform_id {r['platform_id']})")
+        if value == "true":
+            if r["platform_id"] not in race_of:
+                raise ValueError(f"fusion_risk row {r['platform_id']} is not in the Cup market list")
+            keys.add(race_of[r["platform_id"]])
+    return frozenset(keys)

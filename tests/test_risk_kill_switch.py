@@ -61,6 +61,7 @@ def make_manager(venue, alerter=None, sleep=None):
         tournament_id=TOURNAMENT_ID,
         alerter=alerter or FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
     if sleep is not None:
         kwargs["sleep"] = sleep

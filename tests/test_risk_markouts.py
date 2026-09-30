@@ -49,6 +49,7 @@ def make_manager(sleep=no_sleep):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
         sleep=sleep,
     )
 

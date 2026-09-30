@@ -101,3 +101,38 @@ def test_match_row_default_unverified():
         polarity="same", confidence=1.0, rule_diff_notes="",
     )
     assert row.verified is False
+
+
+# --- fusion_risk --------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+from predcup.market_map import fusion_race_keys  # noqa: E402
+
+_CUP = [
+    {"id": "1", "race_key": "NY-Senate"},
+    {"id": "2", "race_key": "NY-Senate"},
+    {"id": "3", "race_key": "MI-Senate"},
+]
+
+
+def _map(*values):
+    return [{"platform_id": str(i + 1), "fusion_risk": v} for i, v in enumerate(values)]
+
+
+def test_fusion_race_keys_flags_whole_race_if_any_row_true():
+    assert fusion_race_keys(_CUP, _map("false", "true", "false")) == frozenset({"NY-Senate"})
+
+
+def test_fusion_race_keys_default_false():
+    assert fusion_race_keys(_CUP, _map("false", "false", "false")) == frozenset()
+
+
+def test_fusion_race_keys_rejects_unknown_value():
+    with pytest.raises(ValueError, match="true or false"):
+        fusion_race_keys(_CUP, _map("false", "yes", "false"))
+
+
+def test_fusion_race_keys_rejects_missing_column():
+    with pytest.raises(ValueError, match="no fusion_risk column"):
+        fusion_race_keys(_CUP, [{"platform_id": "1"}])

@@ -14,7 +14,7 @@ import pytest
 
 from _helpers import full_size_ramp
 from predcup.models import Order
-from predcup.risk import RiskLimits, RiskManager
+from predcup.risk import RiskLimits, RiskManager, net_rd_exposure
 from predcup.store import EventStore
 from sim.mock_exchange import MockExchange
 
@@ -65,6 +65,7 @@ def manager(tmp_path):
         tournament_id=TOURNAMENT_ID,
         alerter=FakeAlerter(),
         size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset(),
     )
 
 
@@ -209,3 +210,109 @@ def test_party_exposure_rejection_is_logged(manager):
     events = manager._event_store.all_events(event_type="risk_rejection")
     assert len(events) == 1
     assert events[0]["payload"]["party_id"] == "R"
+
+
+# --- Fusion races (2026-09-30) ---------------------------------------------
+# SIG's rules: a fusion candidate counts for every party on the ticket, so in
+# a fusion race R and D can both resolve YES. They are not complements there,
+# so a fusion race's R/D orders must not offset anything on the R-vs-D axis.
+# Like Independents, they get their own lane (per-market and total caps only).
+
+FUSION_RACE = "NY-Senate"
+
+
+@pytest.fixture
+def fusion_manager(tmp_path):
+    limits = RiskLimits(
+        max_bankroll_fraction_per_market=1.0,
+        max_total_exposure_fraction=1.0,
+        max_party_exposure_fraction=0.5,  # bankroll 1000 -> cap 500
+        max_order_size_susqies=1_000_000,
+        max_price_deviation_from_fair_value=1.0,
+        daily_loss_stop_fraction=1.0,
+        stale_data_stop_seconds=60,
+    )
+    return RiskManager(
+        limits=limits,
+        bankroll=1000.0,
+        event_store=EventStore(tmp_path / "events.db"),
+        venue=MockExchange(),
+        tournament_id=TOURNAMENT_ID,
+        alerter=FakeAlerter(),
+        size_ramp=full_size_ramp(),
+        fusion_race_keys=frozenset({FUSION_RACE}),
+    )
+
+
+def test_fusion_race_position_does_not_offset_rd_exposure_elsewhere(fusion_manager):
+    # Long D-YES in a fusion race would read as -400 on the R-vs-D axis and
+    # "make room" for 900 of long R elsewhere. It must not.
+    fusion_manager.record_order(
+        make_order(market_id="ny-senate-d", race_key=FUSION_RACE, party_id="D",
+                   quantity=800, price=0.5, idempotency_key="f1")  # fmt: skip
+    )
+    decision = fusion_manager.check(
+        make_order(market_id="mi-senate-r", race_key="MI-Senate", party_id="R",
+                   quantity=1800, price=0.5, idempotency_key="f2"),  # fmt: skip
+        fair_value=0.5, outside_data_age_seconds=0,
+    )
+    assert not decision.approved
+    assert "party-exposure" in decision.reason
+
+
+def test_fusion_race_r_and_d_do_not_net_against_each_other(fusion_manager):
+    fusion_manager.record_order(
+        make_order(market_id="ny-senate-r", race_key=FUSION_RACE, party_id="R",
+                   quantity=800, price=0.5, idempotency_key="f3")  # fmt: skip
+    )
+    fusion_manager.record_order(
+        make_order(market_id="ny-senate-d", race_key=FUSION_RACE, party_id="D",
+                   quantity=800, price=0.5, idempotency_key="f4")  # fmt: skip
+    )
+    assert net_rd_exposure(fusion_manager._tracked_orders(), frozenset({FUSION_RACE})) == 0.0
+    # ...because both are outside the axis, not because they cancelled:
+    only_r = [o for o in fusion_manager._tracked_orders() if o.party_id == "R"]
+    assert net_rd_exposure(only_r, frozenset({FUSION_RACE})) == 0.0
+
+
+def test_fusion_race_orders_never_trigger_the_party_cap(fusion_manager):
+    decision = fusion_manager.check(
+        make_order(market_id="ny-senate-r", race_key=FUSION_RACE, party_id="R",
+                   quantity=1800, price=0.5, idempotency_key="f5"),  # fmt: skip
+        fair_value=0.5, outside_data_age_seconds=0,
+    )
+    assert decision.approved
+
+
+def test_non_fusion_races_still_net_on_the_axis():
+    orders = [
+        make_order(race_key="MI-Senate", party_id="R", quantity=100, price=0.5, idempotency_key="a"),
+        make_order(race_key="MI-Senate", party_id="D", side="no", quantity=100, price=0.5, idempotency_key="b"),
+    ]
+    assert net_rd_exposure(orders, frozenset({FUSION_RACE})) == pytest.approx(100.0)
+
+
+def test_rd_order_without_race_key_is_rejected(fusion_manager):
+    # Fail closed: without a race_key the fusion check can't be made.
+    decision = fusion_manager.check(make_order(race_key=None, idempotency_key="f6"), fair_value=0.5, outside_data_age_seconds=0)
+    assert not decision.approved
+    assert "race_key" in decision.reason
+
+
+def test_risk_manager_requires_fusion_race_keys(tmp_path):
+    with pytest.raises(ValueError, match="fusion_race_keys"):
+        RiskManager(
+            limits=RiskLimits(
+                max_bankroll_fraction_per_market=1.0, max_total_exposure_fraction=1.0,
+                max_party_exposure_fraction=0.5, max_order_size_susqies=1_000_000,
+                max_price_deviation_from_fair_value=1.0, daily_loss_stop_fraction=1.0,
+                stale_data_stop_seconds=60,
+            ),  # fmt: skip
+            bankroll=1000.0,
+            event_store=EventStore(tmp_path / "e.db"),
+            venue=MockExchange(),
+            tournament_id=TOURNAMENT_ID,
+            alerter=FakeAlerter(),
+            size_ramp=full_size_ramp(),
+            fusion_race_keys=None,
+        )

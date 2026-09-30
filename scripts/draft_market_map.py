@@ -348,6 +348,7 @@ def main() -> int:
                     "confidence": str(row.confidence),
                     "verified": "false",
                     "tier": "",
+                    "fusion_risk": existing.get(m["id"], {}).get("fusion_risk", "false"),
                 }
             )
             if (i + 1) % 20 == 0:
@@ -355,7 +356,7 @@ def main() -> int:
 
     fieldnames = [
         "platform_id", "kalshi_ticker", "poly_token_id", "polarity",
-        "rule_diff_notes", "confidence", "verified", "tier",
+        "rule_diff_notes", "confidence", "verified", "tier", "fusion_risk",
     ]  # fmt: skip
     with open(args.output, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
