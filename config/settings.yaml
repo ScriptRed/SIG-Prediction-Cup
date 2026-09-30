@@ -91,6 +91,8 @@ launch_report:
   exclude_states: [AK, GA, ME] # hand-picked exclusions for launch
   exclude_independent: true # every Independent market is excluded
   output_path: "data/launch_report.csv"
+  unmapped_output_path: "data/launch_report_unmapped.csv" # SIG markets with no Kalshi ticker
+  hand_trade_min_edge: 0.02 # "trade by hand at the open": SIG quote crosses Kalshi's by this much
   # low Kalshi volume uses mapping_review.min_kalshi_volume
 
 alerts:

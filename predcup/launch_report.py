@@ -65,6 +65,19 @@ def kalshi_party(k: KalshiMarket) -> str | None:
     return None
 
 
+def kalshi_quotes_in_sig_terms(k: KalshiMarket, polarity: str) -> tuple[float | None, float | None]:
+    """Kalshi (bid, ask) as prices for the SIG market's YES. Inverted: SIG
+    YES is Kalshi NO, whose bid is 1 - Kalshi's YES ask and vice versa."""
+    if polarity == "same":
+        return k.yes_bid, k.yes_ask
+    if polarity == "inverted":
+        return (
+            None if k.yes_ask is None else 1 - k.yes_ask,
+            None if k.yes_bid is None else 1 - k.yes_bid,
+        )
+    return None, None
+
+
 def _book_state(bid: float | None, ask: float | None) -> str:
     if bid is None and ask is None:
         return "empty"
@@ -99,6 +112,10 @@ class ReportRow:
     kalshi_volume: float | None
     gap: float | None  # SIG mid - Kalshi mid (adjusted)
     longshot_overpricing: float | None  # SIG ask - Kalshi mid (adjusted), Kalshi < threshold
+    # Tradeable edges in SIG YES terms (positive = crosses): sell SIG YES at
+    # its bid above Kalshi's ask / buy SIG YES at its ask below Kalshi's bid.
+    sig_bid_minus_kalshi_ask: float | None = None
+    kalshi_bid_minus_sig_ask: float | None = None
     flags: list[str] = field(default_factory=list)
 
     @property
@@ -150,6 +167,12 @@ def build_row(
         gap=gap,
         longshot_overpricing=longshot,
     )
+    if kalshi is not None:
+        k_bid, k_ask = kalshi_quotes_in_sig_terms(kalshi, polarity)
+        if sig.bid is not None and k_ask is not None:
+            row.sig_bid_minus_kalshi_ask = sig.bid - k_ask
+        if k_bid is not None and sig.ask is not None:
+            row.kalshi_bid_minus_sig_ask = k_bid - sig.ask
     row.flags = row_flags(row, kalshi, event, cfg)
     return row
 
@@ -207,7 +230,7 @@ CSV_COLUMNS = [
     "sig_bid", "sig_bid_size", "sig_ask", "sig_ask_size", "sig_mid", "sig_spread",
     "kalshi_ticker", "polarity", "kalshi_bid", "kalshi_ask", "kalshi_mid_adj",
     "kalshi_label", "kalshi_party", "kalshi_event_title", "kalshi_volume",
-    "gap", "longshot_overpricing", "flags",
+    "gap", "sig_bid_minus_kalshi_ask", "kalshi_bid_minus_sig_ask", "longshot_overpricing", "flags",
 ]  # fmt: skip
 
 
@@ -267,3 +290,56 @@ def flag_counts(summary: Summary) -> dict[str, int]:
         for k in kinds:
             counts[k] = counts.get(k, 0) + 1
     return dict(sorted(counts.items(), key=lambda kv: -kv[1]))
+
+
+@dataclass(frozen=True)
+class HandTrade:
+    row: ReportRow
+    direction: str  # "sell SIG YES at bid" / "buy SIG YES at ask"
+    price: float  # the SIG quote to hit
+    size: float | None  # quantity resting at that quote
+    kalshi_price: float  # the Kalshi quote it crosses (SIG YES terms)
+    edge: float
+
+
+def hand_trades(rows: list[ReportRow], min_edge: float) -> list[HandTrade]:
+    """Every SIG quote that crosses Kalshi's by at least `min_edge`, best
+    edge first. Flags are carried on the row for the human to weigh; this
+    list places nothing (LLMs/scripts never trade - a person does)."""
+    out: list[HandTrade] = []
+    eps = 1e-9  # 0.60 - 0.58 must count as 2 points
+    for r in rows:
+        if r.sig_bid_minus_kalshi_ask is not None and r.sig_bid_minus_kalshi_ask >= min_edge - eps:
+            out.append(HandTrade(r, "sell SIG YES at bid", r.sig_bid, r.sig_bid_size,  # type: ignore[arg-type]
+                                 r.sig_bid - r.sig_bid_minus_kalshi_ask, r.sig_bid_minus_kalshi_ask))  # type: ignore[operator]  # fmt: skip
+        if r.kalshi_bid_minus_sig_ask is not None and r.kalshi_bid_minus_sig_ask >= min_edge - eps:
+            out.append(HandTrade(r, "buy SIG YES at ask", r.sig_ask, r.sig_ask_size,  # type: ignore[arg-type]
+                                 r.sig_ask + r.kalshi_bid_minus_sig_ask, r.kalshi_bid_minus_sig_ask))  # type: ignore[operator]  # fmt: skip
+    return sorted(out, key=lambda t: -t.edge)
+
+
+@dataclass(frozen=True)
+class UnmappedRow:
+    """A SIG market with no Kalshi ticker: Cup book only."""
+
+    race_key: str
+    party: str
+    sig_market_id: str
+    sig_title: str
+    bid: float | None
+    bid_size: float | None
+    ask: float | None
+    ask_size: float | None
+
+    @classmethod
+    def from_book(cls, cup_row: dict[str, str], top: SigTop) -> UnmappedRow:
+        return cls(cup_row["race_key"], cup_row["party"], cup_row["id"], cup_row["title"],
+                   top.bid, top.bid_size, top.ask, top.ask_size)  # fmt: skip
+
+    @property
+    def mid(self) -> float | None:
+        return None if self.bid is None or self.ask is None else (self.bid + self.ask) / 2
+
+    @property
+    def spread(self) -> float | None:
+        return None if self.bid is None or self.ask is None else self.ask - self.bid

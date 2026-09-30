@@ -217,7 +217,8 @@ def test_end_to_end_writes_csv_and_summary(tmp_path, monkeypatch):
         f'venues: {{kalshi: {{base_url: "{KALSHI}", request_delay_seconds: 0}}, sig: {{request_delay_seconds: 0}}}}\n'
         "mapping_review: {min_kalshi_volume: 1000}\n"
         "launch_report: {max_gap: 0.03, longshot_below: 0.10, exclude_states: [AK, GA, ME], "
-        "exclude_independent: true, output_path: unused.csv}\n"
+        "exclude_independent: true, output_path: unused.csv, unmapped_output_path: unmapped.csv, "
+        "hand_trade_min_edge: 0.02}\n"
     )
     lines: list[str] = []
     code = launch_report.main(
@@ -235,6 +236,12 @@ def test_end_to_end_writes_csv_and_summary(tmp_path, monkeypatch):
     text = "\n".join(lines)
     assert "1 races with Kalshi tickers (2 SIG markets)" in text
     assert "CLEAN: 0 races" in text and "AZ-Senate: R: party mismatch" in text
+    # 903 has no Kalshi ticker: its Cup book goes to the unmapped section and CSV.
+    assert "NO KALSHI MAPPING: 1 races, 1 SIG markets" in text
+    unmapped = list(csv.DictReader(open(tmp_path / "unmapped.csv")))
+    assert [(u["sig_market_id"], u["mid"]) for u in unmapped] == [("903", "0.6200")]
+    # SIG 0.60/0.64 vs the mock's Kalshi 0.61/0.63: no 2-point cross.
+    assert "TRADE BY HAND AT THE OPEN" in text and "  none" in text
 
 
 def test_minnesota_dfl_party_is_democratic():
@@ -247,3 +254,50 @@ def test_february_2027_expiry_is_still_2026_cycle():
     assert not any(f.startswith("not 2026") for f in row(raw=km(expected_expiration_time="2027-02-01T15:00:00Z")).flags)
     late = row(raw=km(expected_expiration_time="2029-01-09T15:00:00Z"))
     assert any("outside the 2026 cycle" in f for f in late.flags)
+
+
+# --- tradeable edges, hand-trade list, unmapped races (2026-09-30) -----------
+
+from predcup.launch_report import UnmappedRow, hand_trades, kalshi_quotes_in_sig_terms  # noqa: E402
+
+
+def test_edges_same_polarity():
+    # SIG 0.60/0.64 vs Kalshi 0.55/0.57: sell SIG at 0.60, buy Kalshi at 0.57 -> +3
+    r = row(raw=km(bid="0.5500", ask="0.5700"))
+    assert r.sig_bid_minus_kalshi_ask == pytest.approx(0.03)
+    assert r.kalshi_bid_minus_sig_ask == pytest.approx(0.55 - 0.64)
+
+
+def test_edges_inverted_polarity_use_complements():
+    # Kalshi 0.37/0.39 on the other side = 0.61/0.63 in SIG YES terms.
+    k = parse_market(km(bid="0.3700", ask="0.3900"))
+    assert kalshi_quotes_in_sig_terms(k, "inverted") == (pytest.approx(0.61), pytest.approx(0.63))
+    r = row(raw=km(bid="0.3700", ask="0.3900"), map_row={"kalshi_ticker": "X", "polarity": "inverted"})
+    assert r.sig_bid_minus_kalshi_ask == pytest.approx(0.60 - 0.63)
+    assert r.kalshi_bid_minus_sig_ask == pytest.approx(0.61 - 0.64)
+
+
+def test_edges_missing_when_a_side_is_missing():
+    r = row(sig=SigTop(None, None, 0.05, 10), raw=km(bid="0.0000", ask="0.0130"))
+    assert r.sig_bid_minus_kalshi_ask is None
+    assert r.kalshi_bid_minus_sig_ask is None
+
+
+def test_hand_trades_lists_crosses_of_two_points_or_more():
+    sell_sig = row(sig=SigTop(0.08, 1000, 0.16, 1000), raw=km(bid="0.0040", ask="0.0130"))  # +6.7
+    buy_sig = row(sig=SigTop(0.40, 100, 0.45, 100), raw=km(bid="0.4800", ask="0.4900"))  # +3
+    small = row(sig=SigTop(0.60, 100, 0.64, 100), raw=km(bid="0.5500", ask="0.5850"))  # +1.5
+    trades = hand_trades([small, buy_sig, sell_sig], min_edge=0.02)
+    assert [(t.direction, round(t.edge, 3)) for t in trades] == [("sell SIG YES at bid", 0.067), ("buy SIG YES at ask", 0.03)]
+    assert trades[0].size == 1000
+
+
+def test_hand_trades_boundary_is_inclusive():
+    r = row(sig=SigTop(0.60, 100, 0.64, 100), raw=km(bid="0.5500", ask="0.5800"))  # exactly 2
+    assert len(hand_trades([r], min_edge=0.02)) == 1
+
+
+def test_unmapped_row():
+    u = UnmappedRow.from_book(cup(state="NH", office="House"), SigTop(0.40, 100, 0.50, 200))
+    assert u.mid == pytest.approx(0.45) and u.spread == pytest.approx(0.10)
+    assert UnmappedRow.from_book(cup(), SigTop(None, None, 0.5, 1)).mid is None

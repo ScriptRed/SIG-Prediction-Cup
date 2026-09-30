@@ -14,3 +14,4 @@ KILL
 
 # Generated snapshots (scripts/launch_report.py)
 data/launch_report.csv
+data/launch_report_unmapped.csv
