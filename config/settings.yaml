@@ -32,6 +32,12 @@ fair_value:
   # blend Kalshi + Polymarket in log-odds space, liquidity-weighted
   max_outside_data_age_seconds: 60 # stale-data stop threshold (CLAUDE.md quoter rule)
   min_confidence_to_trade: 0.5 # market_map.csv confidence column; below this, no auto-trading
+  kalshi: # v1 fair value = Kalshi mid, verified Tier A rows only (predcup/fairvalue.py)
+    max_spread: 0.10 # wider Kalshi spread -> no fair value
+    base_uncertainty: 0.005
+    thin_volume: 1000 # lifetime contracts; below this adds thin_penalty
+    thin_penalty: 0.01
+    stale_penalty: 0.01 # added linearly with quote age, up to this at max_outside_data_age_seconds
 
 # Phase 1 risk defaults (CLAUDE.md "Risk (Phase 1 defaults, in config)").
 # Phase 2 loosens these only via an explicit config change, never in code.

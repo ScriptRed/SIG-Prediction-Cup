@@ -165,3 +165,16 @@ class KalshiReadOnly:
     async def get_event(self, event_ticker: str) -> KalshiEvent:
         data = await self._get(f"/events/{event_ticker}")
         return parse_event(data["event"])
+
+    async def get_markets(self, tickers: list[str], chunk_size: int = 50) -> dict[str, KalshiMarket]:
+        """Many markets per request: GET /markets?tickers=a,b,c. The spec
+        documents `tickers` but no maximum count.
+        TODO(api): chunk size 50 is our own conservative choice."""
+        out: dict[str, KalshiMarket] = {}
+        for i in range(0, len(tickers), chunk_size):
+            chunk = tickers[i : i + chunk_size]
+            data = await self._get("/markets", {"tickers": ",".join(chunk), "limit": len(chunk)})
+            for raw in data.get("markets") or []:
+                m = parse_market(raw)
+                out[m.ticker] = m
+        return out

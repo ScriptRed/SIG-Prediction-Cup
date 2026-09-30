@@ -6,7 +6,7 @@
 - [x] launch_report: tradeable-edge columns, unmapped-race section, "trade by hand at the open" list
 - [x] LAUNCH_CHECKLIST §D: SIG seed quotes vs Kalshi moves
 - [x] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()` (orders tested against a mock transport only; reads checked live)
-- [ ] `fairvalue.py` v1 (Kalshi mid, verified Tier A only)
+- [x] `fairvalue.py` v1 (Kalshi mid, verified Tier A only). Nothing is verified yet, so no market has a fair value until rows are marked with `show_mapping --mark-verified`
 - [ ] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry)
 - [ ] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram)
 - [ ] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`)
