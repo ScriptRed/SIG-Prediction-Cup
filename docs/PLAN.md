@@ -8,7 +8,7 @@
 - [x] `venues/sig.py`: reads, orders, cancel-all, batch, idempotency, retries, `record_rate_limited()` (orders tested against a mock transport only; reads checked live)
 - [x] `fairvalue.py` v1 (Kalshi mid, verified Tier A only). Nothing is verified yet, so no market has a fair value until rows are marked with `show_mapping --mark-verified`
 - [x] `quoter.py` v1 (20–30 markets, small size, batch, configurable expiry) + `orders.py` router (the only order path; shadow mode) + `control.py` halt. Known gap for step 8: `risk.py` counts exposure from orders only, so a quote that fills and is later swept by cancel-all drops out of exposure; reconciliation must feed positions back into risk before going live
-- [ ] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram)
+- [x] `main.py` in shadow mode (ramp, fusion set, risk manager, loop lag; hooks for KILL watcher + Telegram): `python -m predcup.main`. Live mode refused in code (`predcup.app.LIVE_ENABLED = False`). Safety-branch hooks: `App.request_kill(reason)`, `App.reset_ramp(reason)`, injected `alerter`, `App.add_task(factory)`
 - [ ] Reconciliation loop (`/tournaments/{slug}/portfolio/positions` → `record_reconciliation()`)
 - [ ] Merge `safety` branch (KILL watcher, Telegram /kill /resetramp, systemd), wire into `main.py` — built in a separate session
 - [ ] Multi-hour run against the mock exchange
@@ -38,7 +38,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 ## Stage 2 — 1–7 October (automated market making)
 - [x] 9. `risk.py` + kill switch (tests first). 2026-09-30: fusion-risk races kept off the net R-vs-D axis (`fusion_race_keys`, required); `main.py` must build that set from `market_map.csv` via `predcup.market_map.fusion_race_keys`
 - [ ] 10. `strategies/quoter.py` (+ optional stink orders)
-- [ ] 10a. Loop-lag metric (`predcup/looplag.py`, done): still to wire — `main.py` starts `run_probe()`, quoter and reconciliation loops call `record()` each iteration. Heavy work (scenario, district model, election-night projection, dashboard) runs in separate processes and hands results over via SQLite (CLAUDE.md "Process split")
+- [x] 10a. Loop-lag metric (`predcup/looplag.py`, done; wired 2026-09-30 in `predcup/app.py`): was to wire — `main.py` starts `run_probe()`, quoter and reconciliation loops call `record()` each iteration. Heavy work (scenario, district model, election-night projection, dashboard) runs in separate processes and hands results over via SQLite (CLAUDE.md "Process split")
 - [ ] 11. Offline test vs mock exchange with replayed Kalshi history
 - [ ] 12. Shadow mode on real platform (log-only)
 - [ ] 13. Live under the size ramp (`risk.size_ramp`: 10% launch fraction, ×2 per 45 clean reconciliations; mismatch/unexpected 4xx drops a step, 429s only on a burst of >5 in 10 min; step persisted, restart resumes one below; reset via `/resetramp` or `scripts/reset_ramp.py`), reconciliation every minute. Ramp logic done; still to wire: reconciliation loop → `record_reconciliation()`, `sig.py` 429s → `record_rate_limited()`, `main.py` builds `SizeRamp`, Telegram `/resetramp`

@@ -6,7 +6,7 @@ platform:
   base_url: "https://www.thesuper.market/api/v1"
   # TODO(api): fill in once we have an API key and have called GET /tournaments
   # to find the Predictions Cup's slug and UUID. Never rely on the org default.
-  tournament_slug: null
+  tournament_slug: "midterm-elections" # confirmed via GET /tournaments 2026-09-28
   tournament_id: null
 
 storage:
