@@ -27,7 +27,7 @@ Reference document for all planning chats. The repo is the source of truth; keep
 - **Netting:** buying the opposite side of a position you hold cancels share-for-share and pays 1 SUSQie per cancelled pair immediately. Buying NO at q while holding YES ≡ selling YES at 1 − q. Closing needs little or no balance.
 - Leaderboard ranks by account value in real time; final score = balance after all markets resolve (so pushing prices at the close does not change final score).
 - **Settlement:**
-  - Election/politics markets **auto-settle from their configured data source**; workers check every **4 hours**. A market stays pending until the source gives a valid result. So races can settle (and pay out) **before** the 4 Nov close, and that capital can be re-used in still-open markets.
+  - Election/politics markets **auto-settle from their configured data source**; workers check every **4 hours**. A market stays pending until the source gives a valid result. **Superseded 2026-09-30 by the Info tabs:** the source is official *certified* results, so races almost certainly do not settle before the 4 Nov close and capital is not recycled on election night (see §4, §10).
   - The **four chamber-control markets are settled manually** by an admin once control is established, and stay closed to trading while awaiting that result. Runoff races are also settled by admins once official. Treat capital in these as locked until the very end.
   - Admins can force-settle with a documented reason (and the API shows settlement corrections exist).
   - Cancelled / N/A outcome → refund of the refundable cost of held shares (edge lost, capital returned).
@@ -40,13 +40,16 @@ Reference document for all planning chats. The repo is the source of truth; keep
 - **Answered by the API docs (see `docs/platform/SUMMARY.md`):** Bearer-key auth, websocket via Supabase Realtime (250 ms batches), tick 0.005, limit orders with optional expiry, batch and atomic multi-leg orders, one YES-normalized book per binary market (no YES/NO book arb), engine-monitored cross-market "ALL" relationships with public violation alerts and collateral savings for related positions.
 - **Answered by the guide pages (see `docs/platform/guide.md`):** settlement mechanics, ranking eligibility, tie handling, profile privacy, p2p liquidity, notification channels.
 - Actual rate-limit numbers (per key, unpublished).
-- **Does a race market stay tradeable between its data source calling it and the next 4-hourly settlement run?** Only observable live.
-- **Each market's settlement data source** (AP? state officials?) — read Info tabs on 1 Oct. If AP, AP race calls are an early-warning feed.
+- **Answered 2026-09-30 by the Info tabs (same template across markets):**
+  - **Settlement data source:** official election results from election authorities; resolution on **final certified results**; recounts or legal challenges delay it. Races almost certainly do not settle on election night. **AP calls are the fastest signal, not the settlement source.**
+  - **Fusion:** a fusion candidate counts for every party on the ticket, so more than one party's market can resolve YES. R and D are not guaranteed complements; races with a candidate on more than one of SIG's party lines get `fusion_risk=true` in `market_map.csv` (parity scanner skips them, `risk.py` keeps them off the R-vs-D axis).
+  - **Party definitions:** wins count by party affiliation, not caucusing.
+- **Does a called race keep trading until the 4 Nov 12:00 ET close?** Probably (certified-results resolution); confirm by observing the first AP call.
 - Does any market have its own close/settlement date before 4 Nov 12:00 ET?
 - Whether "closed to trading while awaiting manual result" for chamber-control markets can start before the 4 Nov close.
 - Changelog page (not yet captured).
 - How "strongest traders" is defined for the Super Signal.
-- Per-market resolution details: party definitions (independents), runoffs, ranked-choice counting, 50–50 Senate handling.
+- Per-market resolution details still open: runoffs, ranked-choice counting, 50–50 Senate handling (party definitions and fusion answered above).
 
 ## 5. Core strategic insight
 
@@ -54,7 +57,7 @@ Only the top 3 of (likely) thousands are paid. Maximising expected SUSQies is no
 
 - **Phase 1 (October): grow the bankroll with low-risk edge.** Never bust early — the bankroll cannot be replenished.
 - **Phase 2 (final days): one concentrated, correlated scenario bet** (a basket of same-direction underdogs betting on the direction of polling error), held to resolution. Size depends on leaderboard position. Chamber-control legs are locked until manual settlement.
-- **Phase 3 (election night, 3–4 Nov until 12:00 ET close):** trade live results faster than the market. Races may auto-settle within ~4 h of a call, so the window per race is short; capital from settled races can be recycled.
+- **Phase 3 (election night, 3–4 Nov until 12:00 ET close):** trade live results faster than the market. Resolution is on certified results, so races almost certainly stay unsettled through the close and called races probably stay tradeable until 12:00 ET: the window per race runs from poll close to the trading close, not a few hours. **Capital recycling from settled races is dropped** (2026-09-30) — everything committed on election night stays locked until certification. AP calls are the fastest signal to trade on.
 
 Holding rule: hold while the edge lasts; exit when price reaches fair value (Phase 1). Phase 2 is held to resolution deliberately for variance.
 
@@ -63,7 +66,7 @@ Holding rule: hold while the edge lasts; exit when price reaches fair value (Pha
 | Rank | Strategy | When | Common? |
 |---|---|---|---|
 | 1 | Concentrated polling-error basket, held to resolution | Final days | Medium (few do it coherently) |
-| 2 | Election-night trading on live county results and race calls (before auto-settlement) | 3–4 Nov | Low–medium |
+| 2 | Election-night trading on live county results and race calls (called races likely tradeable until the 4 Nov close) | 3–4 Nov | Low–medium |
 | 3 | Selling overpriced longshots to top-3 chasers | All month | Low |
 | 4 | Opening moments: unseeded books, first-day mistakes, new listings | 1 Oct, new markets | Low–medium |
 | 5 | Cross-market consistency: chamber control vs races, Dem/Rep pairs (engine publishes violations, so speed matters) | All month | Low–medium |
@@ -112,4 +115,7 @@ Profits are extremely concentrated in a tiny share of accounts, mostly automated
 
 - 2026-09-29: Market tiers in `market_map.csv`: A (Kalshi/Polymarket anchored), B (ratings-based fair value), C (parity only); nothing auto-trades unless tier and fair-value source allow it. Planned: `ratings` fair-value source from hand-maintained `config/ratings.csv` (mapping + per-rating uncertainty in settings, staleness by rating date), safe-seat review flags, mid-October district model (partisan lean + national environment from Kalshi House control and anchored races + incumbency) feeding Tier B and `scenario.py`. Launch day: manual trading of Kalshi mispricings and parity gaps at the open with the bot in shadow mode, then live under the size ramp. See `docs/PLAN.md` Stage 2b.
 - 2026-09-29: Launch size ramp in `risk.py`: order size and per-market cap start at 10% and double after N clean reconciliations; any mismatch, unexpected 4xx or 429 drops one step and alerts.
+- 2026-09-30: Info-tab rules recorded (same template across markets). Settlement source is official certified results, not AP: races almost certainly don't settle on election night, called races probably stay tradeable until the 4 Nov 12:00 ET close, AP calls are the fastest signal. **Election-night capital recycling dropped from Phase 3.**
+- 2026-09-30: Fusion candidates count for every party on the ticket, so R and D are not guaranteed complements. New `fusion_risk` column in `market_map.csv` (default false; true for any race where a candidate appears on more than one of SIG's party lines). The parity/overround scanner skips flagged races; `risk.py` keeps them off the net R-vs-D axis (own lane, like Independents) and rejects R/D orders with no `race_key`. `RiskManager` requires the fusion set explicitly.
+- 2026-09-30: Party wins count by affiliation, not caucusing.
 (Append new decisions here with dates.)

@@ -50,13 +50,16 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 
 ### Info tab of every market you'll trade (resolution risk)
 - [ ] Resolution rules read
-- [ ] **Settlement data source** (AP? state officials? other?) → if AP, set up an AP race-call alert source
+- [x] **Settlement data source** — answered 2026-09-30: official certified results from election authorities, **not AP**; recounts/legal challenges delay it. AP calls are the fastest signal only (see `docs/platform/SUMMARY.md` "Market resolution rules")
 - [ ] **Per-market close / settlement date** — anything before 4 Nov 12:00 ET?
-- [ ] Party definitions (independents caucusing with a party?)
+- [x] Party definitions — answered 2026-09-30: wins count by party affiliation, not caucusing. Fusion candidates count for every party on the ticket → set `fusion_risk=true` in `market_map.csv` for any race where a candidate is on more than one SIG party line
 - [ ] **Ranked-choice settlement — Alaska, Maine:** confirm how/when SIG settles once RCV tabulation (which can run well past election night) finishes; don't assume a same-night result for these two states' Senate/House races
 - [ ] **Runoffs — Georgia, Louisiana:** confirm SIG's settlement date/rule when no candidate clears a majority on election night and the race goes to a runoff weeks later
 - [ ] **Races with a serious independent candidate but no corresponding SIG market** — start with **Michigan Governor** (SIG lists only R/D there; check whether other headline races have the same gap). An omitted independent's real vote share breaks the "R + D ≈ 100" assumption the overround scanner and any R-vs-D consistency check rely on
 - [ ] N/A or cancellation conditions
+
+### Opening trades (manual)
+- [ ] DE-Senate R: rules match Kalshi; SIG seed ~0.12 vs Kalshi 0.013, trade the 0.08 bid at the open.
 
 ### Market map
 - [ ] `config/market_map.csv` filled for launch markets: Kalshi ticker, Polymarket token id, **polarity**, rule differences, confidence
@@ -107,7 +110,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 
 ## F. Election night (3–4 Nov)
 
-- [ ] Does a race stay tradeable between its source calling it and the next 4-hourly settlement run? (observe on the first called race)
+- [ ] Does a called race keep trading until the close? Observe the first AP call.
 - [ ] Do chamber-control markets close to trading before 4 Nov 12:00 ET?
 - [ ] Quote-pull rule firing correctly on calls and poll closings
-- [ ] Settled payouts arriving in balance before the close (capital recycling)
+- [x] ~~Settled payouts arriving in balance before the close (capital recycling)~~ — dropped 2026-09-30: settlement is on certified results, after the close

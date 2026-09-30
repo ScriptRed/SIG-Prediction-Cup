@@ -80,6 +80,15 @@ Source: `docs/platform/openapi.json` (OpenAPI 3.1, "Super Market API 1.0.0", 80 
 - Market schema (`Market`): `status` enum `open|closed|settled`, `settlementDate`, `settledWith`, `settledOn`. **No intraday trading-hours/halt-schedule field exists anywhere in the spec** — only tournament-level `startDate`/`endDate` (`TournamentSummary`) bound the whole competition. Whether Cup markets trade overnight on election night is genuinely **not in spec** — must ask SIG directly.
 - Pagination: `pagination.hasMore` + opaque `nextCursor` (limit typically ≤200), except trades/price-history which use their own `from`/`to`/`cursor`/`limit` params above.
 
+## Market resolution rules (Info tab) — recorded 2026-09-30
+
+From each Cup market's **Info** tab on the SIG site; the same template is used across markets. Not in the API: the `Market` schema has no rules or description field (the `show_mapping` script prints "rules: NONE" for every market).
+
+- **Data source:** official election results from election authorities. **Resolution is on final certified results**; recounts or legal challenges delay it. So races almost certainly **do not settle on election night**, and called races probably stay tradeable until the 4 Nov 12:00 ET close (to be confirmed by watching the first AP call — `docs/LAUNCH_CHECKLIST.md` §F). AP race calls are the fastest *signal*, not the settlement source.
+- **Fusion:** a fusion candidate counts for **every party on the ticket**, so more than one party's market in a race can resolve YES. R and D are **not guaranteed complements**: the parity/overround scanner skips races flagged `fusion_risk=true` in `config/market_map.csv`, and `risk.py` keeps those races off the net R-vs-D axis.
+- **Party:** wins count by **party affiliation, not caucusing** (an independent who caucuses with a party does not count for that party).
+- Market `settlementDate` from the API reads 2026-11-04T17:00Z (= 12:00 ET, the trading close) on the markets checked so far (MA). Our reading, not stated by SIG: with certified-results resolution it marks the trading close, not when payouts happen.
+
 ## Portfolio (important trap)
 
 - `/portfolio/positions`, `/pnl`, `/history`, `/settlements`, `/transactions` **always report the org's default tournament** and ignore `tournamentId`.
@@ -126,6 +135,7 @@ Source: `docs/platform/openapi.json` (OpenAPI 3.1, "Super Market API 1.0.0", 80 
 ## Still unknown (confirmed absent from `openapi.json`, not just undocumented)
 
 - **Actual rate-limit numbers** — no numeric values or `x-ratelimit-*` headers anywhere in the spec; only the dynamic `Retry-After` header on affected responses.
+- **Settlement data source** — answered 2026-09-30 from the Info tabs: official certified results (see "Market resolution rules" above), not AP.
 - **Whether Cup markets keep trading overnight on election night** — no trading-hours/halt-schedule field exists in `Market` or `Exchange` schemas; only tournament-level `startDate`/`endDate` bound the whole competition. Must ask SIG.
 - **Position limits** (per-market or per-account) — no `positionLimit`/`maxPosition`/exposure-cap field anywhere in the spec. Either platform-enforced with no queryable field, or a soft rule — our `risk.py` limits are the only enforcement we control.
 - Which relationships exist between Cup markets specifically — only knowable once markets are live, via `GET /relationships?marketId=`.
