@@ -11,3 +11,6 @@ __pycache__/
 *.log
 .DS_Store
 KILL
+
+# Generated snapshots (scripts/launch_report.py)
+data/launch_report.csv
