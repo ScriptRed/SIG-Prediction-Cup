@@ -175,3 +175,109 @@ def test_main_calls_shutdown_in_a_finally_block():
     serve = next(n for n in ast.walk(tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "serve")
     tries = [n for n in ast.walk(serve) if isinstance(n, ast.Try) and n.finalbody]
     assert any("shutdown" in ast.unparse(t.finalbody[i]) for t in tries for i in range(len(t.finalbody)))
+
+
+# --- session 2 pieces: watchdog, startup cancel-all, /status, daily summary -------------
+
+
+class FakeWatchdog:
+    def __init__(self):
+        self.beats: list[str] = []
+        self.ran = False
+
+    def beat(self, loop):
+        self.beats.append(loop)
+
+    async def run(self):
+        self.ran = True
+        await asyncio.sleep(3600)
+
+
+def test_watchdog_is_only_built_under_systemd():
+    from predcup.main import build_watchdog
+
+    settings = {"watchdog": {"loops": ["quoter"], "max_silence_seconds": 180, "default_ping_interval_seconds": 20}}
+    assert build_watchdog(settings, alerter=None, env={}) is None  # laptop: no NOTIFY_SOCKET
+    assert build_watchdog(settings, alerter=None, env={"NOTIFY_SOCKET": "/run/systemd/notify"}) is not None
+
+
+def test_loops_beat_the_watchdog(tmp_path):
+    from datetime import datetime, timezone
+
+    app, _ = make_app(tmp_path, clock=lambda: datetime.now(timezone.utc))
+    wd = FakeWatchdog()
+    app.set_watchdog(wd)
+    run(app.run(duration_seconds=0.3))
+    assert {"quoter", "kalshi_poll", "reconciliation"} <= set(wd.beats) and wd.ran
+
+
+def test_no_watchdog_is_fine(tmp_path):
+    app, store = make_app(tmp_path)
+    run(app.run(duration_seconds=0.2))
+    assert store.all_events("loop_lag")
+
+
+def _serve_briefly(app):
+    async def go():
+        stop = asyncio.Event()
+        task = asyncio.create_task(app.serve(stop))
+        await asyncio.sleep(0.05)
+        stop.set()
+        await task
+
+    run(go())
+
+
+def test_serve_cancels_leftover_orders_on_startup_in_live(tmp_path):
+    venue = BookVenue()
+    app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    resting(venue, "left-by-a-crashed-process")
+    _serve_briefly(app)
+    assert store.all_events("startup_cancel_all")[0]["payload"]["result"] == "clean"
+    events = [e["event_type"] for e in store.all_events() if e["event_type"] in ("startup_cancel_all", "loop_lag")]
+    assert events[0] == "startup_cancel_all"  # before any loop ran
+
+
+def test_serve_skips_startup_cancel_in_shadow(tmp_path):
+    venue = BookVenue()
+    app, store = make_app(tmp_path, venue=venue)
+    resting(venue, "manual")
+    _serve_briefly(app)
+    assert store.all_events("startup_cancel_all")[0]["payload"]["result"] == "skipped (shadow)"
+
+
+class PnlVenue(BookVenue):
+    async def get_pnl(self, tournament_id, period):
+        from predcup.venues.sig import TournamentPnl
+
+        return TournamentPnl(period=period, period_pnl={"day": 12.5, "all": 340.0}[period], unrealized_pnl=0.0,
+                             total_account_value=100_340.0, roi=None)  # fmt: skip
+
+
+def test_status_provider_shows_todays_cup_pnl(tmp_path):
+    from predcup.status import format_status
+
+    app, _ = make_app(tmp_path, venue=PnlVenue())
+    text = format_status(run(app.status_provider().snapshot()))
+    assert "P&L today: +12.50" in text and "SHADOW" in text
+
+
+def test_status_provider_pnl_unreadable_is_na(tmp_path):
+    from predcup.status import format_status
+
+    app, _ = make_app(tmp_path)  # BookVenue has no get_pnl
+    assert "P&L today: n/a" in format_status(run(app.status_provider().snapshot()))
+
+
+def test_telegram_status_command_uses_the_app_provider(tmp_path):
+    app, store = make_app(tmp_path, venue=PnlVenue())
+    router = CommandRouter(CHAT, on_kill=app.kill, on_reset_ramp=app.reset_ramp, confirm_timeout_seconds=60,
+                           event_store=store, status_provider=app.status_provider())  # fmt: skip
+    assert "P&L today: +12.50" in run(router.handle(CHAT, "/status"))
+
+
+def test_daily_summary_uses_total_cup_pnl(tmp_path):
+    app, _ = make_app(tmp_path, venue=PnlVenue())
+    reporter = app.daily_summary(alerter=app.alerter)
+    text = run(reporter.compose())
+    assert "P&L: total +340.00" in text

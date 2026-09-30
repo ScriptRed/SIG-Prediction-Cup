@@ -29,6 +29,8 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from dataclasses import dataclass
+
 import httpx
 
 from predcup.models import (
@@ -107,6 +109,19 @@ def _json(resp: httpx.Response) -> Any:
 
 
 RateLimitCallback = Callable[[str, "float | None"], None]
+
+PNL_PERIODS = ("day", "week", "month", "quarter", "year", "all")
+
+
+@dataclass(frozen=True)
+class TournamentPnl:
+    """GET /tournaments/{slug}/portfolio/pnl (Cup tournament only)."""
+
+    period: str
+    period_pnl: float | None  # null when the API can't compute it
+    unrealized_pnl: float
+    total_account_value: float
+    roi: float | None
 
 
 class SigVenue(Venue):
@@ -458,6 +473,22 @@ class SigVenue(Venue):
             if hit_known or not data["pagination"]["hasMore"]:
                 return list(reversed(new))
             cursor = data["pagination"]["nextCursor"]
+
+    async def get_pnl(self, tournament_id: str, period: str) -> TournamentPnl:
+        """Cup P&L for `period` (day/week/month/quarter/year/all). Always the
+        tournament path, never the no-argument /portfolio/pnl. A 409 (holdings
+        without valuation prices) raises, never reads as 0."""
+        if period not in PNL_PERIODS:
+            raise ValueError(f"period must be one of {PNL_PERIODS}, got {period!r}")
+        await self._check(tournament_id)
+        d = await self._get(f"/tournaments/{self._slug}/portfolio/pnl", {"period": period})
+        return TournamentPnl(
+            period=d["period"],
+            period_pnl=None if d.get("periodPnl") is None else float(d["periodPnl"]),
+            unrealized_pnl=float(d["unrealizedPnl"]),
+            total_account_value=float(d["totalAccountValue"]),
+            roi=d.get("roi"),
+        )
 
     async def get_balance(self, tournament_id: str) -> float:
         await self._check(tournament_id)

@@ -423,3 +423,36 @@ def test_tournament_summary_reads_status_and_start():
     venue, _ = make_venue(Recorder([]))
     s = run(venue.tournament_summary())
     assert s["id"] == TID and s["myBalance"] == 98765.5
+
+
+# --- P&L (Cup tournament only) ------------------------------------------------------------
+
+
+PNL = {"period": "day", "periodStart": "2026-10-01T00:00:00Z", "periodEnd": "2026-10-01T18:00:00Z",
+       "periodPnl": 42.5, "unrealizedPnl": 30.0, "totalAccountValue": 100042.5, "totalHoldingsValue": 310.5,
+       "totalCostBasis": 280.5, "roi": 0.04, "sharpe": None}  # fmt: skip
+
+
+def test_get_pnl_reads_tournament_pnl_for_a_period():
+    rec = Recorder([(200, PNL, None)])
+    venue, _ = make_venue(rec)
+    pnl = run(venue.get_pnl(TID, period="day"))
+    req = rec.requests[0]
+    assert req.url.path == f"/api/v1/tournaments/{SLUG}/portfolio/pnl"
+    assert dict(req.url.params) == {"period": "day"}
+    assert (pnl.period, pnl.period_pnl, pnl.unrealized_pnl, pnl.total_account_value) == ("day", 42.5, 30.0, 100042.5)
+
+
+def test_get_pnl_refuses_other_tournament_and_bad_period():
+    venue, _ = make_venue(Recorder([]))
+    with pytest.raises(ValueError, match="tournament"):
+        run(venue.get_pnl("other", period="day"))
+    with pytest.raises(ValueError, match="period"):
+        run(venue.get_pnl(TID, period="fortnight"))
+
+
+def test_get_pnl_409_missing_valuation_is_an_error_not_zero():
+    rec = Recorder([(409, err("MISSING_TOURNAMENT_VALUATION"), None)])
+    venue, _ = make_venue(rec)
+    with pytest.raises(SigApiError):
+        run(venue.get_pnl(TID, period="all"))

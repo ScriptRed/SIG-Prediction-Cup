@@ -390,6 +390,7 @@ class RiskManager:
         size_ramp: SizeRamp,
         fusion_race_keys: frozenset[str] | None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        now: Callable[[], datetime] = _utc_now,
     ) -> None:
         if not tournament_id:
             raise ValueError("tournament_id is required and cannot be blank")
@@ -409,6 +410,7 @@ class RiskManager:
         self._tournament_id = tournament_id
         self._alerter = alerter
         self._sleep = sleep
+        self._now = now
         self._daily_realized_pnl = 0.0
         self._orders: dict[str, Order] = {}
         self._halted_markets: set[str] = set()
@@ -687,12 +689,13 @@ class RiskManager:
         )
 
     def schedule_markouts(
-        self, fill: Fill, price_lookup: Callable[[int], Awaitable[float]]
+        self, fill: Fill, price_lookup: Callable[[int], Awaitable[float | None]]
     ) -> list[asyncio.Task]:
         """Log a markout to events_log at 1, 5 and 30 minutes after every
-        fill. `price_lookup(minutes)` is awaited at each horizon to fetch
-        the price to compare against — called with the horizon itself so
-        callers don't need to track wall-clock time separately.
+        fill, measured from fill.filled_at (a fill may only be seen a
+        minute later, at reconciliation). `price_lookup(minutes)` is awaited
+        at each horizon; if it returns None or fails, `markout_unavailable`
+        is logged instead of a made-up number. The caller keeps the tasks.
         """
         return [
             asyncio.create_task(self._log_markout_after(fill, price_lookup, minutes))
@@ -702,8 +705,19 @@ class RiskManager:
     async def _log_markout_after(
         self, fill: Fill, price_lookup: Callable[[int], Awaitable[float]], minutes: int
     ) -> None:
-        await self._sleep(minutes * 60)
-        later_price = await price_lookup(minutes)
+        due = fill.filled_at + timedelta(minutes=minutes)
+        await self._sleep(max(0.0, (due - self._now()).total_seconds()))
+        try:
+            later_price = await price_lookup(minutes)
+        except Exception as e:  # a failed read must not kill the task silently
+            later_price = None
+            reason = repr(e)[:200]
+        else:
+            reason = "no two-sided SIG book"
+        if later_price is None:
+            self._event_store.log("markout_unavailable", {"fill_id": fill.id, "exchange_id": fill.exchange_id,
+                                                          "minutes": minutes, "reason": reason})  # fmt: skip
+            return
         markout = compute_markout(fill, later_price)
         self._event_store.log(
             "markout",

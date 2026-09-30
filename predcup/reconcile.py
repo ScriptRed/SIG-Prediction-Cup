@@ -16,6 +16,8 @@ orders, so clean reconciliations must not grow the live size.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from predcup.control import TradingControl
@@ -67,6 +69,20 @@ class Reconciler:
         self._shadow = shadow
         self._max_failures = max_read_failures
         self._failures = 0
+        self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
+
+    def price_lookup(self, exchange_id: str) -> Callable[[int], Awaitable[float | None]]:
+        """Markout price: the SIG mid for that exchange, None unless two-sided."""
+
+        async def lookup(minutes: int) -> float | None:
+            tops = await self._venue.get_top_of_books([exchange_id], self._tid)
+            bid, ask = tops.get(exchange_id, (None, None))
+            return None if bid is None or ask is None else (bid + ask) / 2
+
+        return lookup
+
+    def pending_markouts(self) -> list[asyncio.Task]:
+        return [t for t in self._markout_tasks if not t.done()]
 
     async def run_once(self) -> ReconResult:
         swept = self._router.swept_snapshot()  # before the fill sync, see OrderRouter.release_swept
@@ -76,6 +92,12 @@ class Reconciler:
                 if self._store.record_fill(fill):
                     self._store.log("fill", {"fill_id": fill.id, "order_id": fill.order_id, "exchange_id": fill.exchange_id,
                                              "side": fill.side, "quantity": fill.quantity, "price": fill.price})  # fmt: skip
+                    # Every fill, the bot's or a manual one: 1/5/30-min markouts.
+                    # TODO(api): assumes Fill.price is YES-normalized (as for
+                    # orders); confirm with go-live gate (f).
+                    for task in self._risk.schedule_markouts(fill, self.price_lookup(fill.exchange_id)):
+                        self._markout_tasks.add(task)
+                        task.add_done_callback(self._markout_tasks.discard)
             positions = await self._venue.get_positions(self._tid)
         except Exception as e:  # any read failure: not a mismatch, but not clean either
             return self._read_failed(repr(e)[:300])

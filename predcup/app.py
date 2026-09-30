@@ -17,8 +17,14 @@ Safety wiring (predcup/killfile.py, predcup/alerts.py):
 - App.reset_ramp(reason): Telegram /resetramp.
 - `alerter` is injected: TelegramAlerter in main.py.
 - App.add_task(factory): watchers and the alert sender run alongside the loops.
-- App.serve(stop_event): runs everything; its finally block cancels all Cup
-  orders in live mode on any exit (SIGINT from systemd, crash, cancellation).
+- App.serve(stop_event): first cancel_all_on_startup (live: clear whatever a
+  crashed predecessor left), then the loops; its finally block cancels all
+  Cup orders in live mode on any exit (SIGINT from systemd, crash,
+  cancellation).
+- App.set_watchdog(w): systemd watchdog (predcup/watchdog.py), only under
+  systemd; every periodic loop beats it at the top of each iteration.
+- App.status_provider() / App.daily_summary(alerter): Telegram /status and
+  the 08:00 summary, with the Cup P&L from SigVenue.get_pnl.
 """
 
 from __future__ import annotations
@@ -153,6 +159,7 @@ class App:
         self._halt_handled = False
         self._kill_result: KillSwitchResult | None = None
         self._extra_tasks: list[Callable[[], Awaitable[None]]] = []
+        self.watchdog = None  # set_watchdog(): systemd only
         store.log("app_start", {"shadow": shadow, "targets": [t.target.exchange_id for t in targets],
                                 "tournament_id": tournament_id})  # fmt: skip
 
@@ -172,6 +179,30 @@ class App:
 
     def add_task(self, factory: Callable[[], Awaitable[None]]) -> None:
         self._extra_tasks.append(factory)
+
+    def set_watchdog(self, watchdog) -> None:
+        """Beat by every periodic loop; its run() pings systemd."""
+        self.watchdog = watchdog
+        self.add_task(watchdog.run)
+
+    async def _pnl(self, period: str) -> float:
+        pnl = await self.venue.get_pnl(self.tid, period=period)
+        if pnl.period_pnl is None:
+            raise ValueError(f"Cup P&L for period {period} not available")
+        return pnl.period_pnl
+
+    def status_provider(self):
+        from predcup.status import AppStatusProvider
+
+        return AppStatusProvider(self, pnl_today=lambda: self._pnl("day"))
+
+    def daily_summary(self, alerter: Alerter):
+        from predcup.summary import DailySummaryReporter
+
+        return DailySummaryReporter.from_config(
+            self.settings, store=self.store, tournament_id=self.tid, status_provider=self.status_provider(),
+            alerter=alerter, pnl_total=lambda: self._pnl("all"),
+        )  # fmt: skip
 
     # --- one step of each loop (tests drive these directly) ----------------------------
 
@@ -221,6 +252,8 @@ class App:
         scheduled = self.mono()
         while True:
             self.looplag.record(name, scheduled)
+            if self.watchdog is not None:
+                self.watchdog.beat(name)
             try:
                 await step()
             except Exception as e:  # a loop must never die silently
@@ -270,12 +303,17 @@ class App:
         """Run until `stop` is set (SIGINT/SIGTERM), `duration_seconds`
         passes, or the task is cancelled; always cancel all Cup orders on
         the way out in live mode."""
-        run = asyncio.create_task(self.run(duration_seconds))
+        from predcup.watchdog import cancel_all_on_startup
+
+        run: asyncio.Task | None = None
         stopped = asyncio.create_task(stop.wait())
         try:
+            await cancel_all_on_startup(self)  # before any loop runs
+            run = asyncio.create_task(self.run(duration_seconds))
             await asyncio.wait({run, stopped}, return_when=asyncio.FIRST_COMPLETED)
         finally:
-            for t in (run, stopped):
+            tasks = [t for t in (run, stopped) if t is not None]
+            for t in tasks:
                 t.cancel()
-            await asyncio.gather(run, stopped, return_exceptions=True)
+            await asyncio.gather(*tasks, return_exceptions=True)
             await self.shutdown()

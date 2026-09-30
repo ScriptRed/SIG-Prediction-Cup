@@ -54,6 +54,9 @@ class FakeRisk:
     def update_positions(self, positions):
         self.positions = positions
 
+    def schedule_markouts(self, fill, lookup):
+        return []
+
 
 class FakeRouter:
     def __init__(self):

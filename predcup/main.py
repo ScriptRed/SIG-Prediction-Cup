@@ -58,6 +58,17 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
+def build_watchdog(settings: dict, alerter, env=None):
+    """The systemd watchdog, only when running under systemd (NOTIFY_SOCKET
+    set). On a laptop there is nothing to ping and nothing to alert about."""
+    env = os.environ if env is None else env
+    if not env.get("NOTIFY_SOCKET"):
+        return None
+    from predcup.watchdog import Watchdog
+
+    return Watchdog.from_config(settings, alerter)
+
+
 def build_alerter(settings: dict, store: EventStore, shadow: bool):
     """(alerter, bot) - Telegram when configured; required in live mode.
     Returns bot=None when Telegram isn't configured (shadow only)."""
@@ -72,7 +83,8 @@ def build_alerter(settings: dict, store: EventStore, shadow: bool):
         return LogAlerter(store), None, None
     tg = load_telegram_config(settings)
     bot = TelegramBot(token)
-    alerter = TelegramAlerter(chat_id, bot.send_message, tg.min_send_interval_seconds, tg.max_send_attempts)
+    alerter = TelegramAlerter(chat_id, bot.send_message, tg.min_send_interval_seconds, tg.max_send_attempts,
+                              event_store=store)  # fmt: skip
     return alerter, bot, chat_id
 
 
@@ -122,12 +134,17 @@ async def amain(duration: float | None) -> int:
             # Hard rule 7: the KILL file always works, Telegram /kill when configured.
             watcher = KillFileWatcher.from_config(settings, app.kill, alerter=alerter)
             app.add_task(watcher.run)
+            watchdog = build_watchdog(settings, alerter)
+            if watchdog is not None:
+                app.set_watchdog(watchdog)  # READY=1 once the loops run, then pings
+            app.add_task(app.daily_summary(alerter).run)
             if bot is not None:
                 from predcup.alerts import CommandRouter, load_telegram_config
 
                 tg = load_telegram_config(settings)
                 router = CommandRouter(chat_id, on_kill=app.kill, on_reset_ramp=app.reset_ramp,
-                                       confirm_timeout_seconds=tg.confirm_timeout_seconds, event_store=store)  # fmt: skip
+                                       confirm_timeout_seconds=tg.confirm_timeout_seconds, event_store=store,
+                                       status_provider=app.status_provider())  # fmt: skip
                 app.add_task(alerter.run)
                 await bot.start(router)
 
@@ -138,7 +155,9 @@ async def amain(duration: float | None) -> int:
                 print("no verified Tier A rows in market_map.csv: fair values and quotes will be empty "
                       "(mark races with scripts.show_mapping --mark-verified)", file=sys.stderr)  # fmt: skip
             alerter.send(f"predcup started ({mode}): {len(targets)} quotable market(s)")
-            await app.serve(stop, duration)  # its finally cancels all Cup orders in live mode
+            # serve(): startup cancel-all (live), then the loops; its finally
+            # cancels all Cup orders in live mode.
+            await app.serve(stop, duration)
     finally:
         if bot is not None:
             try:

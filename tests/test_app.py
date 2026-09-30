@@ -35,6 +35,7 @@ SETTINGS = {
                "cycle_interval_seconds": 0.05, "quote_size_shares": 20, "max_markets": 30,
                "max_position_shares": 200, "post_only": True, "pull_quotes_before_events": []},
     "venues": {"kalshi": {"poll_interval_seconds": 0.05}},
+    "daily_summary": {"time": "08:00", "timezone": "Europe/London", "max_alerts_listed": 10},
 }  # fmt: skip
 
 CUP = [

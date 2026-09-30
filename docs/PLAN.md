@@ -14,6 +14,8 @@
 - [x] Per-market cancel scope: re-quotes cancel by `exchangeId`; tournament-wide only in kill switch and shutdown
 - [x] Manual trading coexists: all account fills reconciled, `trading.manual_only` never quoted, manual positions in risk
 - [x] Go-live gate written into LAUNCH_CHECKLIST §C (items a–f). Tooling for (c) and (d): `scripts/place_test_order.py` (through `OrderRouter.place_test_order` → `RiskManager.check_test_order`)
+- [x] Second safety merge (2026-10-01): startup cancel-all in `App.serve`, systemd watchdog (only under systemd), Telegram `/status`, 08:00 daily summary, all wired
+- [x] Markouts at 1/5/30 min on every fill (bot or manual), from the fill time; Cup P&L (`SigVenue.get_pnl`) in `/status` and the daily summary
 - [ ] Multi-hour run against the mock exchange: harness `python -m sim.run_mock --hours 3` done (real App in live mode against MockExchange only, simulated Kalshi, random fills, injected Kalshi outages, invariant checks). 3-min smoke run passed 2026-09-30; a 2 h pre-merge soak started the same evening; the real multi-hour run follows the safety merge
 
 

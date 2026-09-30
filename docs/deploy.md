@@ -42,9 +42,11 @@ without a ping systemd kills the bot and restarts it. The new process
 cancels all Cup orders (live mode) before its loops start; if any remain,
 it halts and alerts.
 
-`main.py` must run `Watchdog.run` (via `App.add_task`). Without it the bot
-never sends `READY=1`, so systemd treats the start as failed after
-`TimeoutStartSec` (120 s) and restarts it in a loop.
+`main.py` runs `Watchdog.run` (via `App.set_watchdog`) only when
+`NOTIFY_SOCKET` is set, i.e. under systemd. Run by hand (laptop, `python -m
+predcup.main`) there is no watchdog at all: no pings, no staleness alerts.
+Under systemd without it the bot would never send `READY=1` and systemd
+would restart it in a loop after `TimeoutStartSec` (120 s).
 
 `journalctl -u predcup | grep -i watchdog` shows watchdog kills.
 
