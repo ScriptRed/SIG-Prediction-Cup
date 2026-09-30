@@ -39,6 +39,9 @@ _SCHEMA = (
     # Single-row table: the size ramp's current step, so a restart can
     # resume one step below it instead of jumping back to full size or
     # all the way down to launch size (predcup.risk.SizeRamp).
+    # /status and the daily summary read the latest / recent events of one
+    # type from the trading loop; no full scans (predcup/status.py).
+    "CREATE INDEX IF NOT EXISTS events_by_type_ts ON events_log (event_type, ts)",
     """
     CREATE TABLE IF NOT EXISTS ramp_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -151,6 +154,28 @@ class EventStore:
             {"ts": ts, "event_type": et, "payload": json.loads(payload)}
             for ts, et, payload in rows
         ]
+
+    def latest_event(self, event_type: str) -> dict[str, Any] | None:
+        rows = self.recent_events(event_type, limit=1)
+        return rows[0] if rows else None
+
+    def recent_events(self, event_type: str, limit: int) -> list[dict[str, Any]]:
+        """The `limit` newest events of one type, newest first."""
+        rows = self._conn.execute(
+            "SELECT ts, event_type, payload FROM events_log WHERE event_type = ? "
+            "ORDER BY ts DESC, id DESC LIMIT ?",
+            (event_type, limit),
+        ).fetchall()
+        return [{"ts": ts, "event_type": et, "payload": json.loads(p)} for ts, et, p in rows]
+
+    def events_since(self, event_type: str, since: datetime) -> list[dict[str, Any]]:
+        """Events of one type logged at or after `since` (aware), oldest first."""
+        rows = self._conn.execute(
+            "SELECT ts, event_type, payload FROM events_log WHERE event_type = ? AND ts >= ? "
+            "ORDER BY ts, id",
+            (event_type, since.astimezone(timezone.utc).isoformat()),
+        ).fetchall()
+        return [{"ts": ts, "event_type": et, "payload": json.loads(p)} for ts, et, p in rows]
 
     # --- ramp_state ---------------------------------------------------------
 

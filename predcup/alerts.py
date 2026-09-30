@@ -11,7 +11,8 @@ Wiring for main.py (all inside the running event loop):
     router = CommandRouter(chat_id, on_kill=risk.kill,
                            on_reset_ramp=risk.reset_size_ramp,
                            confirm_timeout_seconds=tg.confirm_timeout_seconds,
-                           event_store=store)
+                           event_store=store,
+                           status_provider=AppStatusProvider(app))  # predcup/status.py
     asyncio.create_task(alerter.run())
     await bot.start(router)          # polling; await bot.stop() on shutdown
 
@@ -32,6 +33,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from predcup.status import StatusProvider, format_status
 from predcup.store import EventStore
 
 logger = logging.getLogger(__name__)
@@ -45,7 +47,8 @@ CONFIRM_WORD = "YES"
 HELP_TEXT = (
     "Commands:\n"
     "/kill - cancel all orders and stop quoting (immediate)\n"
-    "/resetramp - reset the size ramp to launch size (asks for YES)"
+    "/resetramp - reset the size ramp to launch size (asks for YES)\n"
+    "/status - ramp, halt, open orders, positions, P&L, reconciliation, loop lag"
 )
 
 
@@ -103,7 +106,9 @@ class CommandRouter:
         confirm_timeout_seconds: float,
         event_store: EventStore,
         clock: Callable[[], float] = time.monotonic,
+        status_provider: StatusProvider | None = None,
     ) -> None:
+        self._status_provider = status_provider
         self._allowed = str(allowed_chat_id).strip()
         if not self._allowed:
             raise ValueError("allowed_chat_id is required")
@@ -134,6 +139,8 @@ class CommandRouter:
         command = _command_word(text)
         if command == "/kill":
             return await self._kill()
+        if command == "/status":
+            return await self._status()
         if command == "/resetramp":
             self._resetramp_requested_at = self._clock()
             self._log("resetramp_requested")
@@ -164,6 +171,15 @@ class CommandRouter:
                 f"open after retries: {remaining}. Check the venue by hand."
             )
         return "Kill engaged: quoting halted, all orders cancelled. Restart the service to resume."
+
+    async def _status(self) -> str:
+        if self._status_provider is None:
+            return "Status not available: no status provider wired in main.py."
+        try:
+            return format_status(await self._status_provider.snapshot())
+        except Exception as exc:
+            logger.exception("telegram /status failed")
+            return f"Status failed: {exc!r}"[:500]
 
     def _confirm_resetramp(self, pending_at: float | None) -> str:
         if pending_at is None:
