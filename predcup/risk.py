@@ -417,6 +417,7 @@ class RiskManager:
         # fully-filled orders stand in for the positions they created.
         self._positions: list[PositionExposure] = []
         self._positions_known = False
+        self._killed = False
 
     def record_reconciliation(self, matched: bool, detail: str = "") -> None:
         """Feed each position reconciliation result to the size ramp. The
@@ -467,6 +468,27 @@ class RiskManager:
         if self._positions_known:
             orders = [o for o in orders if o.status != OrderStatus.FILLED]
         return orders
+
+    @property
+    def is_killed(self) -> bool:
+        return self._killed
+
+    async def kill(self, reason: str) -> KillSwitchResult:
+        """The kill path for the KILL file and Telegram /kill (CLAUDE.md Hard
+        Rule 7). Latches a global halt first, so check() rejects every order
+        from here on even if the cancel below fails, then cancels everything
+        in the Cup. The halt only clears on a process restart."""
+        self._killed = True
+        self._event_store.log("kill", {"reason": reason})
+        self._alerter.send(f"KILL ({reason}): quoting halted, cancelling all orders.")
+        result = await self.kill_switch()
+        if result.success:
+            self._alerter.send(f"KILL ({reason}): all orders confirmed cancelled.")
+        return result
+
+    def reset_size_ramp(self, reason: str) -> None:
+        """Telegram /resetramp: back to launch_fraction."""
+        self._size_ramp.reset(reason)
 
     def is_market_halted(self, market_id: str) -> bool:
         return market_id in self._halted_markets
@@ -520,6 +542,9 @@ class RiskManager:
         self, order: Order, *, fair_value: float | None, outside_data_age_seconds: float
     ) -> RiskDecision:
         limits = self._limits
+
+        if self._killed:
+            return RiskDecision(False, "kill switch engaged")
 
         if order.market_id is not None and self.is_market_halted(order.market_id):
             return RiskDecision(False, "market halted after an unexpected order rejection")

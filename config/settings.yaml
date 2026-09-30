@@ -14,7 +14,14 @@ storage:
 
 kill_switch:
   file_path: "KILL" # repo root; presence halts all quoting and cancels orders
+  poll_interval_seconds: 1.0 # predcup/killfile.py checks for the file this often
   telegram_kill_command: "/kill"
+
+# predcup/alerts.py. Bot token and chat id are secrets: .env only.
+telegram:
+  confirm_timeout_seconds: 60 # /resetramp needs a YES reply within this
+  min_send_interval_seconds: 1.0 # Telegram allows ~1 message/s per chat
+  max_send_attempts: 3 # per alert, with backoff, then dropped (still in the log)
 
 venues:
   kalshi:
