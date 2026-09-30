@@ -6,7 +6,8 @@ Wiring for main.py (all inside the running event loop):
     tg = load_telegram_config(config)
     bot = TelegramBot(token)
     alerter = TelegramAlerter(chat_id, bot.send_message,
-                              tg.min_send_interval_seconds, tg.max_send_attempts)
+                              tg.min_send_interval_seconds, tg.max_send_attempts,
+                              event_store=store)
     ... build RiskManager(alerter=alerter, ...) ...
     router = CommandRouter(chat_id, on_kill=risk.kill,
                            on_reset_ramp=risk.reset_size_ramp,
@@ -210,7 +211,9 @@ class TelegramAlerter:
         min_send_interval_seconds: float,
         max_send_attempts: int,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        event_store: EventStore | None = None,
     ) -> None:
+        self._event_store = event_store
         self._chat_id = str(chat_id).strip()
         self._send_fn = send_fn
         self._interval = min_send_interval_seconds
@@ -221,6 +224,9 @@ class TelegramAlerter:
 
     def send(self, message: str) -> None:
         logger.warning("alert: %s", message)
+        if self._event_store is not None:
+            # events_log "alert", as LogAlerter does: the daily summary counts these.
+            self._event_store.log("alert", {"message": message})
         if len(message) > TELEGRAM_MAX_MESSAGE_LENGTH:
             message = message[: TELEGRAM_MAX_MESSAGE_LENGTH - 3] + "..."
         self._queue.append(message)
