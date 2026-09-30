@@ -5,15 +5,16 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 ## Stage 0 — Setup
 - [x] Save platform API reference and all guide pages into `docs/platform/` (register first if docs need login)
 - [x] Record from docs: auth, endpoints, websocket?, rate limits, position limits, price format, tick size → summary in `docs/platform/SUMMARY.md`
-- [ ] Save Kalshi and Polymarket API docs into `docs/kalshi/`, `docs/polymarket/`
+- [ ] Save Kalshi and Polymarket API docs into `docs/kalshi/`, `docs/polymarket/` (Kalshi done 2026-09-30: `openapi.yaml`, market-data quick start, rate limits; Polymarket still open)
 - [ ] Cloud VM (US-East), Telegram bot token, `.env` created (git-ignored)
 - [x] `requirements.txt`, `.gitignore`, `config/settings.yaml` skeleton
 
 ## Stage 1 — Before 1 October (manual trading with good fair values)
 - [ ] 1. `models.py` (done) + `store.py` (`events_log`, `ramp_state`, `orders`, `fills`, `positions` done — markets, market_map, external_prices, fair_values tables still open)
 - [x] 2. `venues/base.py` + `sim/mock_exchange.py`
-- [ ] 3. `venues/kalshi.py` + `venues/polymarket.py` (read-only, poll every 5–15 s)
+- [ ] 3. `venues/kalshi.py` + `venues/polymarket.py` (read-only, poll every 5–15 s). Minimal `kalshi.py` done (GET market/event, parsed per `docs/kalshi/openapi.yaml`); polling + `Venue` interface still open
 - [ ] 4. `config/market_map.csv` (Claude drafts, human verifies every row)
+- [x] 4a. **Launch-critical:** `scripts/show_mapping.py` for hand-verifying the map race by race: SIG side (Cup book, rules text or an explicit "none"), mapped Kalshi market (titles, outcomes, rules, dates, bid/ask, volume), polarity in words, warnings (primary/non-2026 contract, mids > 10 pts apart after polarity, Kalshi spread > 5 pts, low volume; thresholds in `settings.yaml` `mapping_review`). `--list` shows every race's tier/verified/confidence; `--mark-verified` sets `verified=true, tier=A` on that race's rows only after a typed `yes`. GET-only against both venues
 - [ ] 5. `fairvalue.py` v1
 - [ ] 6. `venues/sig.py` read-only, then order placement
 - [ ] 7. `dashboard/app.py` + `alerts.py` (gap > threshold, YES+NO arb, pair inconsistencies)
@@ -32,7 +33,7 @@ Tick boxes as steps are completed. Competition opens 12:00 ET Thu 1 Oct 2026; tr
 
 Launch-day plan (1 Oct): trade by hand at the open against Kalshi mispricings and parity gaps while the bot runs in shadow mode (step 12); the bot then goes live under the size ramp (step 13).
 
-- [ ] T1. Market tiers in `config/market_map.csv` (new `tier` column): **A** = Kalshi/Polymarket anchored, **B** = ratings-based fair value, **C** = parity only. Nothing trades automatically unless both its tier and its fair-value source allow it (A → market-based fair value; B → ratings, only once T4's review gate is passed; C → no fair-value quoting, parity/consistency trades only). `verified=false` still means no automatic trading, whatever the tier.
+- [ ] T1. Market tiers in `config/market_map.csv` (`tier` column added 2026-09-30, blank until assigned; `show_mapping --mark-verified` sets A): **A** = Kalshi/Polymarket anchored, **B** = ratings-based fair value, **C** = parity only. Nothing trades automatically unless both its tier and its fair-value source allow it (A → market-based fair value; B → ratings, only once T4's review gate is passed; C → no fair-value quoting, parity/consistency trades only). `verified=false` still means no automatic trading, whatever the tier.
 - [ ] T2. `fairvalue.py` second source type `"ratings"`, read from hand-maintained `config/ratings.csv` (`race_key, source, rating, date`). Rating → probability mapping and per-rating uncertainty in `settings.yaml`. Own staleness rule based on the rating `date` (max age in config), not the 60 s outside-data rule.
 - [ ] T3. `config/ratings.csv` first fill (hand-maintained; no scraping of rating sites without checking ToS/robots.txt).
 - [ ] T4. Safe-seat module: flag markets priced well above their ratings-based probability → alert/dashboard for manual review. No automatic trading on a flagged market until I've reviewed it.

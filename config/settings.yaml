@@ -18,7 +18,9 @@ kill_switch:
 
 venues:
   kalshi:
+    base_url: "https://external-api.kalshi.com/trade-api/v2" # docs/kalshi/openapi.yaml servers
     poll_interval_seconds: 10 # read-only, 5-15s per CLAUDE.md
+    request_delay_seconds: 0.25 # pause after every GET; unauthenticated limit not documented
   polymarket:
     poll_interval_seconds: 10 # read-only, 5-15s per CLAUDE.md
   sig:
@@ -74,6 +76,12 @@ quoter:
   requote_fair_value_move_ticks: 2 # re-quote when fair value moves > 1 point (0.005 tick each)
   quote_expiration_seconds: 30 # dead-man's switch: every resting quote gets a short expirationDate
   pull_quotes_before_events: [] # scheduled events (ISO timestamps or cron-like rules) to pull all quotes before
+
+# scripts/show_mapping.py warnings shown to the human verifying market_map.csv.
+mapping_review:
+  max_mid_diff: 0.10 # SIG vs Kalshi mid after polarity; bigger suggests an inverted/wrong mapping
+  max_kalshi_spread: 0.05
+  min_kalshi_volume: 1000 # lifetime contracts; below this the Kalshi price is not much of an anchor
 
 alerts:
   gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert

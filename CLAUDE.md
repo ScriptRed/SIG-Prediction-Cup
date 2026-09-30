@@ -44,7 +44,7 @@ predcup/
   docs/                      PROJECT_BRIEF.md, PLAN.md, platform/, kalshi/, polymarket/
   config/
     settings.yaml            limits, thresholds, schedules (no secrets)
-    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence, verified
+    market_map.csv           platform_id, kalshi_ticker, poly_token_id, polarity, rule_diff_notes, confidence, verified, tier
   predcup/
     models.py                Market, OrderBook, Order, Fill, Position (pydantic)
     store.py                 SQLite persistence

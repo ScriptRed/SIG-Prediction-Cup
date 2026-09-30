@@ -60,7 +60,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 
 ### Market map
 - [ ] `config/market_map.csv` filled for launch markets: Kalshi ticker, Polymarket token id, **polarity**, rule differences, confidence
-- [ ] **Every row checked by hand** — polarity especially. One inverted row = bot quotes the wrong price confidently
+- [ ] **Every row checked by hand** — polarity especially. One inverted row = bot quotes the wrong price confidently. Use `python -m scripts.show_mapping <race_key>` (`--list` to pick races, `--mark-verified` to record)
 
 ---
 

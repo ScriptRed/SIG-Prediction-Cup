@@ -265,7 +265,7 @@ def main() -> int:
 
     fieldnames = [
         "platform_id", "kalshi_ticker", "poly_token_id", "polarity",
-        "rule_diff_notes", "confidence", "verified",
+        "rule_diff_notes", "confidence", "verified", "tier",
     ]  # fmt: skip
     with open(args.output, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -280,6 +280,7 @@ def main() -> int:
                     "rule_diff_notes": row.rule_diff_notes,
                     "confidence": row.confidence,
                     "verified": "false",
+                    "tier": "",
                 }
             )
 
