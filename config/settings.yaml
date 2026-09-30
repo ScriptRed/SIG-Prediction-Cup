@@ -14,6 +14,7 @@ storage:
 
 kill_switch:
   file_path: "KILL" # repo root; presence halts all quoting and cancels orders
+  poll_interval_seconds: 1.0 # predcup/killfile.py checks for the file this often
   telegram_kill_command: "/kill"
 
 venues:
