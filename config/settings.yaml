@@ -32,6 +32,16 @@ telegram:
   min_send_interval_seconds: 1.0 # Telegram allows ~1 message/s per chat
   max_send_attempts: 3 # per alert, with backoff, then dropped (still in the log)
 
+# predcup/watchdog.py + deploy/predcup.service WatchdogSec. The systemd ping
+# is withheld once any of these App loops hasn't started an iteration for
+# max_silence_seconds; systemd then restarts the bot, which cancels all Cup
+# orders on start. Keep it above the slowest loop's interval
+# (reconciliation, 60 s) plus a slow read.
+watchdog:
+  loops: [kalshi_poll, quoter, reconciliation]
+  max_silence_seconds: 180
+  default_ping_interval_seconds: 20 # only when not under systemd; else WatchdogSec / 3
+
 venues:
   kalshi:
     base_url: "https://external-api.kalshi.com/trade-api/v2" # docs/kalshi/openapi.yaml servers

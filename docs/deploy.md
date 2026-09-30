@@ -30,6 +30,24 @@ If the checkout is not at `/opt/predcup` or the user is not `predcup`, edit
 `WorkingDirectory`, `ExecStart`, `ReadWritePaths`, `User` and `Group` in
 the installed unit first.
 
+## Watchdog
+
+The unit is `Type=notify` with `WatchdogSec=60s`. `predcup.watchdog` sends
+`READY=1` once the loops are running, then `WATCHDOG=1` every 20 s, but
+only while each loop in `watchdog.loops` (kalshi_poll, quoter,
+reconciliation) has started an iteration within
+`watchdog.max_silence_seconds` (180 s). A hung loop alerts once on Telegram
+and stops the pings; a blocked event loop stops them too. After 60 s
+without a ping systemd kills the bot and restarts it. The new process
+cancels all Cup orders (live mode) before its loops start; if any remain,
+it halts and alerts.
+
+`main.py` must run `Watchdog.run` (via `App.add_task`). Without it the bot
+never sends `READY=1`, so systemd treats the start as failed after
+`TimeoutStartSec` (120 s) and restarts it in a loop.
+
+`journalctl -u predcup | grep -i watchdog` shows watchdog kills.
+
 ## Day to day
 
 ```bash

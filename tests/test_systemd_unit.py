@@ -68,3 +68,20 @@ def test_deploy_guide_exists_and_references_unit():
     guide = (REPO_ROOT / "docs" / "deploy.md").read_text()
     assert "deploy/predcup.service" in guide
     assert "KILL" in guide
+
+
+def test_watchdog_restarts_a_hung_bot():
+    service = unit()["Service"]
+    # Type=notify: pings (and READY=1) from predcup.watchdog are accepted
+    # from the main process only.
+    assert service["Type"] == ["notify"]
+    assert service["NotifyAccess"] == ["main"]
+    watchdog = float(service["WatchdogSec"][0].rstrip("s"))
+    assert 30 <= watchdog <= 120
+    # Restart=on-failure covers a watchdog timeout.
+    assert service["Restart"] == ["on-failure"]
+
+
+def test_startup_timeout_leaves_room_to_resolve_tournament_and_cancel():
+    service = unit()["Service"]
+    assert float(service["TimeoutStartSec"][0].rstrip("s")) >= 60

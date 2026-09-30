@@ -14,7 +14,16 @@ StartLimitIntervalSec=600
 StartLimitBurst=5
 
 [Service]
-Type=simple
+# Type=notify: predcup.watchdog sends READY=1 once the loops are running,
+# then WATCHDOG=1 while every watched loop is alive. No ping for
+# WatchdogSec -> systemd kills the bot (SIGABRT) and Restart=on-failure
+# starts it again; the new process cancels all Cup orders first thing.
+Type=notify
+NotifyAccess=main
+WatchdogSec=60s
+# Startup (resolve tournament, balance, startup cancel-all) must reach
+# READY=1 within this, or systemd counts it as a failed start.
+TimeoutStartSec=120s
 User=predcup
 Group=predcup
 WorkingDirectory=/opt/predcup
