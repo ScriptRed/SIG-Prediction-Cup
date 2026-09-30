@@ -94,6 +94,7 @@ Record every answer in the "Found" column, then copy findings into `docs/platfor
 | Which relationships exist between Cup markets | `GET /relationships` and `/relationships/graph` | |
 | Violations feed useful / how fast competed away | Subscribe to `relationships:violations:{tournamentId}` | |
 | Smart score | `GET /tournaments/{slug}/me/smart-score` | |
+| Do SIG seed quotes follow Kalshi moves? | Log SIG mid vs Kalshi mid over time for a few races and measure the lag | |
 | Markouts at 1 / 5 / 30 min | From `events_log` after first fills | |
 | Fill rate per market (headline vs niche) | From `events_log` | |
 
