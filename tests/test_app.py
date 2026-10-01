@@ -39,6 +39,8 @@ SETTINGS = {
     "daily_summary": {"time": "08:00", "timezone": "Europe/London", "max_alerts_listed": 10},
     "alerts": {"loop_error_cooldown_seconds": 600},
     "markouts": {"max_sig_spread": 0.05},
+    "sig_health": {"window_seconds": 300, "degraded_timeout_fraction": 0.3, "recover_timeout_fraction": 0.15,
+                   "min_requests": 10, "latency_log_interval_seconds": 0.05},
     "kill_switch": {"file_path": "KILL", "poll_interval_seconds": 1.0, "wait_for_inflight_seconds": 5,
                     "retry_max_seconds": 30},
 }  # fmt: skip

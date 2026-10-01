@@ -305,3 +305,27 @@ def test_nothing_the_quoter_produces_fails_the_risk_band():
                         if side is not None:
                             # the same test risk.check() applies
                             assert within_price_band(side, value, band), (value, unc, position, book, side)
+
+
+# --- 2026-10-01: "SIG degraded" pulls every quote and resumes on recovery -----------------
+
+
+def test_degraded_sig_pulls_all_quotes_then_resumes():
+    state = {"degraded": False}
+    router = FakeRouter()
+    q = Quoter(router=router, fair_values=FakeTracker({"e0": fv(), "e1": fv()}), positions=lambda: {},
+               books=lambda ids: _no_books(ids), cfg=CFG, tournament_id=TID, control=TradingControl(),
+               degraded=lambda: state["degraded"])  # fmt: skip
+    run(q.cycle(targets(2), NOW))
+    state["degraded"] = True
+    report = run(q.cycle(targets(2), NOW + timedelta(seconds=1)))
+    assert router.calls[1] == {"e0": [], "e1": []} and "degraded" in report.reason
+    run(q.cycle(targets(2), NOW + timedelta(seconds=2)))
+    assert len(router.calls) == 2  # nothing posted while degraded
+    state["degraded"] = False
+    run(q.cycle(targets(2), NOW + timedelta(seconds=3)))
+    assert set(router.calls[2]) == {"e0", "e1"} and all(router.calls[2].values())
+
+
+async def _no_books(ids):
+    return {}

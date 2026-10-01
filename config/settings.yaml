@@ -193,6 +193,17 @@ seed_lag:
     max_gap_seconds: 90 # consecutive samples further apart than this are not compared
     max_lag_samples: 20 # lagged-correlation estimate, in samples
 
+# predcup/health.py. "SIG degraded": more than degraded_timeout_fraction of
+# order-book/price and order requests timed out in window_seconds (at least
+# min_requests) -> pull all quotes, alert; resume at recover_timeout_fraction
+# or when the window empties. Portfolio reads (slow under load) don't count.
+sig_health:
+  window_seconds: 300
+  degraded_timeout_fraction: 0.30
+  recover_timeout_fraction: 0.15
+  min_requests: 10
+  latency_log_interval_seconds: 60 # one sig_latency event per endpoint per interval
+
 # Markouts (1/5/30 min after every fill): marked against the fresh,
 # polarity-adjusted Kalshi fair value when there is one, else the SIG mid
 # only if SIG's spread is under this; otherwise markout_unavailable.

@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 
 from predcup.app import LIVE_ENABLED, App, LogAlerter, load_targets
 from predcup.edge_watch import register_edge_watcher
+from predcup.health import SigHealth, load_health_config
 from predcup.killfile import KillFileWatcher
 from predcup.market_map import fusion_race_keys
 from predcup.seed_lag import register_seed_lag_logger
@@ -115,9 +116,11 @@ async def amain(duration: float | None) -> int:
 
     try:
         async with httpx.AsyncClient(timeout=15) as sig_http, httpx.AsyncClient(timeout=15) as kalshi_http:
+            health = SigHealth(load_health_config(settings), store, alerter)  # latency stats + "SIG degraded"
             venue = SigVenue(sig_http, base_url=settings["platform"]["base_url"], api_key=api_key,
                              tournament_slug=slug, on_rate_limited=relay,
-                             timeouts={k: float(v) for k, v in settings["venues"]["sig"]["timeouts"].items()})  # fmt: skip
+                             timeouts={k: float(v) for k, v in settings["venues"]["sig"]["timeouts"].items()},
+                             on_request=health.record)  # fmt: skip
             tid = await venue.tournament_id()
             configured = settings["platform"].get("tournament_id")
             if configured and configured != tid:
@@ -131,7 +134,7 @@ async def amain(duration: float | None) -> int:
                       tournament_id=tid, bankroll=bankroll, targets=targets,
                       market_meta={c["exchange_id"]: (c["id"], c["party"], c["race_key"]) for c in cup_rows},
                       fusion_race_keys=fusion_race_keys(cup_rows, map_rows), shadow=shadow,
-                      live_allowed=LIVE_ENABLED)  # fmt: skip
+                      live_allowed=LIVE_ENABLED, health=health)  # fmt: skip
             relay.target = app.risk.record_rate_limited
 
             # Hard rule 7: the KILL file always works, Telegram /kill when configured.

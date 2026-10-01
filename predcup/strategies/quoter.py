@@ -171,8 +171,10 @@ class Quoter:
         cfg: QuoterConfig,
         tournament_id: str,
         control: TradingControl,
+        degraded: Callable[[], bool] = lambda: False,
     ) -> None:
         self._router = router
+        self._degraded = degraded  # SigHealth.degraded: pull everything while SIG times out
         self._fair_values = fair_values
         self._positions = positions
         self._books = books
@@ -223,6 +225,9 @@ class Quoter:
         if in_blackout(now, self._cfg.blackouts):
             report = await self._send({ex: [] for ex in self._posted}, {}, now)
             return CycleReport(report.requoted, reason="blackout window")
+        if self._degraded():
+            report = await self._send({ex: [] for ex in self._posted}, {}, now)
+            return CycleReport(report.requoted, reason="SIG degraded: quotes pulled")
 
         targets = targets[: self._cfg.max_markets]
         live = [(t, self._fair_values.current(t.exchange_id)) for t in targets]

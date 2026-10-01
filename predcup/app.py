@@ -119,6 +119,7 @@ class App:
         live_allowed: bool = LIVE_ENABLED,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         mono: Callable[[], float] = time.monotonic,
+        health=None,  # SigHealth: latency stats + "SIG degraded" (main.py wires it to the venue)
     ) -> None:
         if not shadow and not live_allowed:
             raise RuntimeError("live mode is disabled in this build; run in shadow mode")
@@ -150,7 +151,9 @@ class App:
             positions=lambda: store.local_positions(tournament_id),
             books=lambda ids: venue.get_top_of_books(ids, tournament_id),
             cfg=self.quoter_cfg, tournament_id=tournament_id, control=self.control,
+            degraded=(health.degraded if health is not None else (lambda: False)),
         )  # fmt: skip
+        self.health = health
         self.reconciler = Reconciler(
             venue=venue, store=store, risk=self.risk, router=self.router, control=self.control, alerter=alerter,
             tournament_id=tournament_id, market_meta=market_meta, shadow=shadow,
@@ -245,6 +248,9 @@ class App:
         self.refresh_fair_values()
         await self.quoter.cycle([t.target for t in self.targets], self.clock())
 
+    async def _flush_latency(self) -> None:
+        self.health.flush()
+
     async def reconcile_once(self) -> None:
         await self.reconciler.run_once()
 
@@ -334,6 +340,11 @@ class App:
             asyncio.create_task(self._periodic("reconciliation", float(self.settings["risk"]["reconciliation_interval_seconds"]),
                                                self.reconcile_once)),  # fmt: skip
             asyncio.create_task(self.looplag.run_probe()),
+        ]
+        if self.health is not None:
+            tasks.append(asyncio.create_task(self._periodic(
+                "sig_latency", float(self.settings["sig_health"]["latency_log_interval_seconds"]), self._flush_latency)))  # fmt: skip
+        tasks += [
             asyncio.create_task(self._halt_watcher()),
         ] + [asyncio.create_task(f()) for f in self._extra_tasks]
         try:
