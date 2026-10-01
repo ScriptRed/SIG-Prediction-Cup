@@ -147,7 +147,10 @@ async def soak(args: argparse.Namespace) -> int:
     rejections = Counter(e["payload"]["reason"] for e in store.all_events("risk_rejection"))
     ramp = [e["payload"] for e in store.all_events("size_ramp")]
     print(f"ran {elapsed / 3600:.2f} h; kalshi polls {kalshi.calls}; outages {stats['outages']}; fills {stats['fills']}")
-    print(f"orders placed {ev['order']}, cancel-alls {ev['cancel_all']}, fair-value changes {ev['fair_value']}")
+    # Re-quotes cancel per market ("cancel"); a tournament-wide cancel-all only
+    # comes from the kill switch ("kill_switch"), which a clean soak never runs.
+    print(f"orders placed {ev['order']}, per-market cancels {ev['cancel']}, "
+          f"tournament-wide cancel-alls {ev['kill_switch']}, fair-value changes {ev['fair_value']}")
     print(f"reconciliations {dict(recon)}; ramp step now {ramp[-1]['step'] if ramp else '-'}")
     print(f"loop lag: max {max(lags):.3f}s, over threshold {sum(1 for e in store.all_events('loop_lag') if e['payload']['over_threshold'])}")
     print(f"risk rejections: {dict(rejections.most_common(6))}")
