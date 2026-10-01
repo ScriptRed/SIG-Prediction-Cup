@@ -75,7 +75,7 @@ class Reconciler:
         self._failures = 0
         self._clock = clock or (lambda: datetime.now(timezone.utc))  # same clock as RiskManager
         self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
-        self._pnl_missing = False
+        self.last_fill_sync_at: datetime | None = None  # PnlFeed's estimate needs recently synced fills
         # Markouts: fresh polarity-adjusted Kalshi fair value (SIG YES terms)
         # when there is one, else the SIG mid only if the spread is under
         # max_sig_spread; a hollow book's mid is not a price.
@@ -122,6 +122,7 @@ class Reconciler:
         for attempt in (1, 2):
             try:
                 await self._sync_fills()
+                self.last_fill_sync_at = self._clock()
                 # Taken BEFORE the read: a fill confirmed before this instant
                 # is in these positions (RiskManager.update_positions).
                 positions_as_of = self._clock()
@@ -158,46 +159,11 @@ class Reconciler:
                                               quantity=float(p.quantity), price=float(price)))  # fmt: skip
         self._store.log("reconciliation", {"status": "clean", "positions": len(exposures), "shadow": self._shadow})
         self._risk.update_positions(exposures, as_of=positions_as_of)
-        await self._feed_pnl()
         if not self._shadow:
             self._risk.record_reconciliation(True)
             self._router.release_swept(swept)
             self._router.clear_block("clean reconciliation")
         return ReconResult("clean")
-
-    async def _feed_pnl(self) -> None:
-        """Today's Cup P&L -> the daily loss stop; account value -> bankroll
-        (caps are fractions of it). A null P&L or a failed read changes
-        nothing and is logged; it never reads as 0."""
-        get_pnl = getattr(self._venue, "get_pnl", None)
-        if get_pnl is None:
-            return
-        try:
-            pnl = await get_pnl(self._tid, period="day")
-        except Exception as e:
-            self._store.log("pnl_read_failed", {"error": repr(e)[:300]})
-            self._pnl_unavailable(f"read failed: {e!r}"[:200])
-            return
-        self._risk.update_bankroll(pnl.total_account_value)
-        self._store.log("pnl", {"day_pnl": pnl.period_pnl, "account_value": pnl.total_account_value,
-                                "derived": getattr(pnl, "derived", False)})  # fmt: skip
-        if pnl.period_pnl is None:
-            self._pnl_unavailable("periodPnl null and not derivable")
-            return
-        self._risk.update_daily_pnl(pnl.period_pnl)
-        if self._pnl_missing:
-            self._pnl_missing = False
-            self._alerter.send(f"Daily P&L available again ({pnl.period_pnl:+,.2f}); daily loss stop active.")
-
-    def _pnl_unavailable(self, detail: str) -> None:
-        """Mark the daily P&L unknown in risk (live: orders refused) and alert
-        once per outage, not on every reconciliation."""
-        self._risk.update_daily_pnl(None)
-        self._store.log("pnl_unavailable", {"detail": detail})
-        if not self._pnl_missing:
-            self._pnl_missing = True
-            effect = "logged only (shadow)" if self._shadow else "new orders refused until it is back"
-            self._alerter.send(f"Daily P&L unavailable ({detail}): daily loss stop can't be checked; {effect}.")
 
     def _read_failed(self, detail: str) -> ReconResult:
         self._failures += 1

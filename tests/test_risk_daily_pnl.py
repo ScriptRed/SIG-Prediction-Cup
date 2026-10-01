@@ -85,49 +85,6 @@ def test_shadow_does_not_block_on_missing_pnl(tmp_path):
     assert check(make(tmp_path, clock, require=False)).approved
 
 
-def test_reconciler_alerts_when_pnl_becomes_unavailable_and_again_on_recovery(tmp_path):
-    from predcup.control import TradingControl
-    from predcup.reconcile import Reconciler
-    from predcup.venues.sig import TournamentPnl
-
-    clock = {"t": T0}
-    risk = make(tmp_path, clock)
-    alerts = Alerts()
-    state = {"pnl": None}
-
-    class Venue(MockExchange):
-        async def get_pnl(self, tournament_id, period):
-            if state["pnl"] == "fail":
-                raise TimeoutError("SIG slow")
-            return TournamentPnl(period="day", period_pnl=state["pnl"], unrealized_pnl=0.0,
-                                 total_account_value=100_000.0, roi=None)  # fmt: skip
-
-    class Router:
-        def swept_snapshot(self):
-            return []
-
-        def release_swept(self, keys):
-            pass
-
-        def clear_block(self, reason):
-            pass
-
-    store = EventStore(tmp_path / "r.db")
-    rec = Reconciler(venue=Venue(), store=store, risk=risk, router=Router(), control=TradingControl(),
-                     alerter=alerts, tournament_id=TID, market_meta={}, shadow=False, clock=lambda: clock["t"])  # fmt: skip
-    asyncio.run(rec.run_once())  # null, not derivable
-    asyncio.run(rec.run_once())  # still null: no second alert
-    state["pnl"] = "fail"
-    asyncio.run(rec.run_once())  # read failure: still unavailable, still one alert
-    assert not check(risk).approved
-    assert sum("Daily P&L unavailable" in m for m in alerts.messages) == 1
-    state["pnl"] = -12.0
-    asyncio.run(rec.run_once())
-    assert check(risk).approved
-    assert sum("Daily P&L available again" in m for m in alerts.messages) == 1
-    assert store.all_events("pnl_unavailable")
-
-
 def test_app_requires_daily_pnl_in_live_mode_only(tmp_path):
     from test_app import make_app
 

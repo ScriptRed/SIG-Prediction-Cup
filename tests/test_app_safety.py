@@ -375,7 +375,8 @@ def test_kill_during_an_in_flight_batch_leaves_no_open_orders(tmp_path):
     app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
 
     async def go():
-        await app.reconcile_once()  # live mode needs a fresh daily P&L before any order (fail closed)
+        await app.reconcile_once()
+        await app.pnl_once()  # live mode needs a fresh daily P&L before any order (fail closed)
         await app.poll_kalshi_once()
         quoting = asyncio.create_task(app.quote_once())
         await venue.entered.wait()  # risk-checked, batch in flight

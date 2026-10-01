@@ -39,6 +39,7 @@ from predcup.control import TradingControl
 from predcup.fairvalue import FairValueTracker, KalshiQuote, kalshi_fair_value, load_fair_value_config
 from predcup.looplag import LoopLagMonitor, load_loop_lag_config
 from predcup.orders import OrderRouter
+from predcup.pnl import PnlFeed
 from predcup.reconcile import Reconciler
 from predcup.risk import (
     Alerter,
@@ -161,6 +162,10 @@ class App:
             fair_value_of=self._fresh_fair_value,
             max_sig_spread=float(settings["markouts"]["max_sig_spread"]),
         )  # fmt: skip
+        self.pnl_feed = PnlFeed(
+            venue=venue, store=store, risk=self.risk, alerter=alerter, tournament_id=tournament_id, shadow=shadow,
+            marks=self._pnl_marks, fills_fresh=self._fills_fresh, clock=clock,
+        )  # fmt: skip
         self.looplag = LoopLagMonitor(load_loop_lag_config(settings), store, alerter, clock=mono)
         self._quotes: dict[str, KalshiQuote] = {}
         self._kill_lock = asyncio.Lock()
@@ -247,6 +252,28 @@ class App:
     async def quote_once(self) -> None:
         self.refresh_fair_values()
         await self.quoter.cycle([t.target for t in self.targets], self.clock())
+
+    async def _pnl_marks(self, exchange_ids: list[str]) -> dict[str, float | None]:
+        """Marks for the local P&L estimate: fresh Kalshi fair value, else
+        the SIG mid when SIG's spread is under markouts.max_sig_spread."""
+        out: dict[str, float | None] = {ex: self._fresh_fair_value(ex) for ex in exchange_ids}
+        missing = [ex for ex, v in out.items() if v is None]
+        if missing:
+            tops = await self.venue.get_top_of_books(missing, self.tid)
+            limit = float(self.settings["markouts"]["max_sig_spread"])
+            for ex in missing:
+                bid, ask = tops.get(ex, (None, None))
+                if bid is not None and ask is not None and ask - bid < limit - 1e-9:
+                    out[ex] = (bid + ask) / 2
+        return out
+
+    def _fills_fresh(self) -> bool:
+        at = self.reconciler.last_fill_sync_at
+        limit = float(self.settings["risk"]["daily_pnl_max_age_seconds"])
+        return at is not None and (self.clock() - at).total_seconds() <= limit
+
+    async def pnl_once(self) -> None:
+        await self.pnl_feed.run_once()
 
     async def _flush_latency(self) -> None:
         self.health.flush()
@@ -339,6 +366,8 @@ class App:
                                                self.quote_once)),  # fmt: skip
             asyncio.create_task(self._periodic("reconciliation", float(self.settings["risk"]["reconciliation_interval_seconds"]),
                                                self.reconcile_once)),  # fmt: skip
+            # Own task: SIG's portfolio P&L read can take tens of seconds.
+            asyncio.create_task(self._periodic("pnl", float(self.settings["pnl"]["interval_seconds"]), self.pnl_once)),
             asyncio.create_task(self.looplag.run_probe()),
         ]
         if self.health is not None:

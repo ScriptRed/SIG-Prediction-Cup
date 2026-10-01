@@ -78,6 +78,7 @@ def test_manual_position_limits_what_the_bot_may_add(tmp_path):
     placed = run(venue.place_order(manual_order("big", qty=20_000)))
     run(venue.simulate_fill(placed.id, 20_000))
     run(app.reconcile_once())
+    run(app.pnl_once())  # live mode needs a fresh daily P&L (fail closed)
     # max_party_exposure_fraction 0.25 of 100,000 = 25,000; total cap 60,000.
     bot_order = Order(exchange_id="1068", market_id="379", tournament_id=TID, party_id="D", race_key="MA-Senate",
                       side="yes", action="buy", quantity=31_000, price=0.5, idempotency_key="bot")  # fmt: skip
