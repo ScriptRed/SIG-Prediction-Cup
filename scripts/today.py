@@ -5,8 +5,10 @@
     python -m scripts.today --since 2026-10-01T08:00 --until 2026-10-01T12:00
 
 Fills; markouts at 1/5/30 min averaged per market; risk rejections by
-reason; halts (kill, market halts, reconciliation mismatches and read
-failures, router blocks, rejected batches, failed cancels); size-ramp
+reason; halts (kill, market halts, reconciliation mismatches, router
+blocks, rejected batches, failed cancels); warnings that are not halts
+(reconciliation read failures: the bot halts only after several in a row,
+live mode only); size-ramp
 changes; rate-limit events. Times in UTC unless an offset is given; shown
 in the daily_summary timezone. Opens the SQLite file read-only, so it is
 safe to run while the bot is up.
@@ -72,8 +74,10 @@ def _halt_line(et: str, p: dict) -> str | None:
         return f"kill: {p.get('reason', '')}"
     if et == "market_halted":
         return f"market_halted {p.get('market_id')}: {p.get('status_code')} {p.get('error_code')} {p.get('message', '')}"
-    if et == "reconciliation" and p.get("status") in ("mismatch", "read_failed"):
-        return f"reconciliation {p['status'].replace('_', ' ')}: {p.get('detail', '')}"
+    if et == "reconciliation" and p.get("status") == "mismatch":
+        # Live: halts and kills. Shadow: alert only.
+        where = " (shadow, alert only)" if p.get("shadow") else ""
+        return f"reconciliation mismatch{where}: {p.get('detail', '')}"
     if et == "router_blocked":
         return f"router_blocked: {p.get('reason', '')}"
     if et == "router_unblocked":
@@ -84,6 +88,15 @@ def _halt_line(et: str, p: dict) -> str | None:
         return f"kill_switch FAILED: still open {p.get('remaining_order_ids')}"
     if et == "cancel_incomplete":
         return f"cancel_incomplete {p.get('exchange_ids')}: still open {p.get('remaining_order_ids')}"
+    return None
+
+
+def _warning_line(et: str, p: dict) -> str | None:
+    """Logged problems that are not halts. One failed reconciliation read
+    doesn't halt: the bot halts only after risk.reconciliation_max_read_failures
+    in a row, and only in live mode."""
+    if et == "reconciliation" and p.get("status") == "read_failed":
+        return f"reconciliation read failed ({p.get('consecutive', '?')} in a row): {p.get('detail', '')}"
     return None
 
 
@@ -149,6 +162,13 @@ def summarize(events: list[tuple[datetime, str, dict]], labels: dict[str, str], 
     halts = [(ts, line) for ts, et, p in events if (line := _halt_line(et, p)) is not None]
     out.append(f"Halts: {len(halts)}" if halts else "Halts: none")
     for ts, line in halts:
+        out.append(f"  {hhmm(ts)}  {line}")
+
+    # Warnings that are not halts
+    out.append("")
+    warnings = [(ts, line) for ts, et, p in events if (line := _warning_line(et, p)) is not None]
+    out.append(f"Warnings (no halt): {len(warnings)}" if warnings else "Warnings (no halt): none")
+    for ts, line in warnings:
         out.append(f"  {hhmm(ts)}  {line}")
 
     # Size ramp

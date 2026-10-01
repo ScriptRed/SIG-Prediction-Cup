@@ -125,3 +125,39 @@ def test_hours_window_and_read_only(tmp_path):
     code, text = run(paths, ["--hours", "2"])
     assert code == 0
     assert paths["db"].read_bytes() == before
+
+
+# --- 2026-10-01: one failed reconciliation read is not a halt ---------------------------
+
+
+def _section(text: str, header: str) -> list[str]:
+    lines = text.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith(header))
+    out = [lines[start]]
+    for ln in lines[start + 1 :]:
+        if not ln.startswith("  "):
+            break
+        out.append(ln)
+    return out
+
+
+def test_reconciliation_read_failure_is_a_warning_not_a_halt(tmp_path):
+    paths = setup(tmp_path)
+    put(paths["db"], 11, "reconciliation", {"status": "read_failed", "detail": "ReadTimeout('')", "consecutive": 1})
+    _, text = run(paths, WINDOW)
+    halts = "\n".join(_section(text, "Halts"))
+    warnings = "\n".join(_section(text, "Warnings (no halt)"))
+    assert "read failed" not in halts
+    assert "reconciliation read failed (1 in a row)" in warnings and "ReadTimeout" in warnings
+
+
+def test_shadow_mismatch_is_labelled_alert_only(tmp_path):
+    paths = setup(tmp_path)
+    put(paths["db"], 12, "reconciliation", {"status": "mismatch", "detail": "1075 local 0 venue -1000", "shadow": True})
+    _, text = run(paths, WINDOW)
+    assert "reconciliation mismatch (shadow, alert only): 1075 local 0 venue -1000" in text
+
+
+def test_no_warnings_says_none(tmp_path):
+    _, text = run(setup(tmp_path), WINDOW)
+    assert "Warnings (no halt): none" in text
