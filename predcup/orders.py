@@ -116,9 +116,28 @@ class OrderRouter:
         self._store.log("router_blocked", {"reason": reason})
         self._alerter.send(f"Quoting suspended until reconciliation: {reason}")
 
+    def _refusal(self, order: Order) -> str:
+        """Orders the router never sends, whatever risk would say: market
+        orders, and anything without an expirationDate (CLAUDE.md: every
+        resting quote has a short expiry, the dead-man's switch)."""
+        if order.price is None:
+            return "market order (no limit price)"
+        if order.expiration_date is None:
+            return "no expirationDate"
+        return ""
+
+    def _refused(self, order: Order) -> bool:
+        reason = self._refusal(order)
+        if reason:
+            self._store.log("order_refused", {"key": order.idempotency_key, "exchange_id": order.exchange_id,
+                                              "market_id": order.market_id, "reason": reason})  # fmt: skip
+        return bool(reason)
+
     def _approve(self, orders_with_fv: list[tuple[Order, FairValue]], now: datetime) -> list[tuple[Order, FairValue]]:
         approved = []
         for order, fv in orders_with_fv:
+            if self._refused(order):
+                continue
             if not fv.ok or fv.value is None or fv.as_of is None:
                 raise ValueError(f"order {order.idempotency_key} has no usable fair value ({fv.reason})")
             age = (now - fv.as_of).total_seconds()
@@ -270,7 +289,7 @@ class OrderRouter:
         """Go-live gate (c)/(d) only: one order through
         RiskManager.check_test_order (1 share, extreme price, every other
         limit). Returns the placed order, or None if refused."""
-        if self._control.halted:
+        if self._control.halted or self._refused(order):
             return None
         decision = self._risk.check_test_order(order)
         if not decision.approved:

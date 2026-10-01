@@ -7,7 +7,7 @@ price), so a test order can never be a real trade."""
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -58,7 +58,8 @@ def make(tmp_path, venue=None):
 
 def tiny_order(price=0.005, qty=1, action="buy", key="t1") -> Order:
     return Order(exchange_id="1068", market_id="379", tournament_id=TID, party_id="D", race_key="MA-Senate",
-                 side="yes", action=action, quantity=qty, price=price, idempotency_key=key)  # fmt: skip
+                 side="yes", action=action, quantity=qty, price=price, idempotency_key=key,
+                 expiration_date=OPEN + timedelta(seconds=120))  # fmt: skip
 
 
 # --- risk.check_test_order -----------------------------------------------------------

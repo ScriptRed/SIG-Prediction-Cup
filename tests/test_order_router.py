@@ -39,7 +39,8 @@ def run(c):
 
 def order(key="k1", price=0.49, action="buy", market_id="m1", exchange_id="e1") -> Order:
     return Order(exchange_id=exchange_id, market_id=market_id, tournament_id=TID, party_id="D", race_key="MA-Senate",
-                 side="yes", action=action, quantity=10, price=price, idempotency_key=key)  # fmt: skip
+                 side="yes", action=action, quantity=10, price=price, idempotency_key=key,
+                 expiration_date=NOW + timedelta(seconds=30))  # fmt: skip
 
 
 def make(tmp_path, venue=None, shadow=False, risk=None):
@@ -315,3 +316,45 @@ def test_5xx_item_stays_counted_and_suspends_quoting_until_reconciled(tmp_path):
     assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.PENDING, "c": OrderStatus.REJECTED}
     assert router.blocked and "unknown" in router.blocked.lower()
     assert not risk.is_market_halted("m2")  # not a 4xx rejection
+
+
+# --- audit L2/L3 adopted 2026-10-01: no order without an expiry, no market orders -------
+
+
+def test_order_without_expiry_is_refused_and_others_still_go(tmp_path):
+    spy = SpyVenue()
+    router, _, store, *_ = make(tmp_path, venue=spy)
+    no_expiry = order("x", exchange_id="e2", market_id="m2").model_copy(update={"expiration_date": None})
+    res = run(router.requote(upd(order("a"), no_expiry), NOW))
+    sent = [o.idempotency_key for b in spy.batches for o in b]
+    assert sent == ["a"] and res.placed == 1
+    assert store.all_events("order_refused")[0]["payload"]["reason"] == "no expirationDate"
+
+
+def test_market_order_is_refused(tmp_path):
+    spy = SpyVenue()
+    router, _, store, *_ = make(tmp_path, venue=spy)
+    market = order("m").model_copy(update={"price": None, "expiration_date": None})
+    run(router.requote(upd(market), NOW))
+    assert spy.batches == []
+    assert store.all_events("order_refused")[0]["payload"]["reason"] == "market order (no limit price)"
+
+
+def test_refused_orders_never_reach_risk(tmp_path):
+    deny = DenyAll()
+    router, *_ = make(tmp_path, risk=deny)
+    run(router.requote(upd(order("x").model_copy(update={"expiration_date": None})), NOW))
+    assert deny.checked == 0
+
+
+def test_shadow_mode_refuses_them_too(tmp_path):
+    router, _, store, *_ = make(tmp_path, shadow=True)
+    res = run(router.requote(upd(order("x").model_copy(update={"expiration_date": None})), NOW))
+    assert res.approved == 0 and store.all_events("order_refused")
+
+
+def test_test_order_without_expiry_is_refused(tmp_path):
+    spy = SpyVenue()
+    router, *_ = make(tmp_path, venue=spy)
+    t = order("t", price=0.005).model_copy(update={"expiration_date": None, "quantity": 1})
+    assert run(router.place_test_order(t)) is None and spy.batches == []
