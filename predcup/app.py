@@ -277,8 +277,23 @@ class App:
             await asyncio.sleep(max(0.0, scheduled - self.mono()))
 
     async def _halt_watcher(self) -> None:
+        """An internal halt (reconciliation mismatch, whole-batch rejection)
+        has no external retrier like the KILL file or /kill, so keep running
+        the kill until it is verified clean (e.g. SIG timing out at the open)."""
         await self.control.wait_for_halt()
-        await self.handle_halt_once()
+        delay = 1.0
+        cap = float(self.settings["kill_switch"]["retry_max_seconds"])
+        while True:
+            try:
+                result = await self._do_kill(self.control.reason)
+                if result.success:
+                    return
+                detail = f"orders still open: {result.remaining_order_ids}"
+            except Exception as e:
+                detail = repr(e)[:300]
+            self.store.log("kill_retry", {"reason": self.control.reason, "detail": detail, "next_in_seconds": delay})
+            await asyncio.sleep(delay)
+            delay = min(cap, delay * 2)
 
     async def run(self, duration_seconds: float | None = None) -> None:
         tasks = [

@@ -384,3 +384,40 @@ def test_kill_during_an_in_flight_batch_leaves_no_open_orders(tmp_path):
     result = run(go())
     assert result.success
     assert run(venue.get_open_orders(TID)) == []
+
+
+# --- 2026-10-01 launch: an internal halt's kill is retried until clean ------------------
+
+
+class TimeoutCancelVenue(BookVenue):
+    def __init__(self, failures):
+        super().__init__()
+        self.failures = failures
+
+    async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
+        tournament_wide = exchange_id is None and market_id is None  # the kill's sweep, not a re-quote
+        if tournament_wide and self.failures > 0:
+            self.failures -= 1
+            import httpx
+
+            raise httpx.ReadTimeout("SIG slow")
+        return await super().cancel_all(tournament_id, exchange_id, market_id)
+
+
+def test_internal_halt_kill_is_retried_after_a_timeout(tmp_path):
+    from datetime import datetime, timezone
+
+    venue = TimeoutCancelVenue(failures=2)
+    app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue,
+                          clock=lambda: datetime.now(timezone.utc))  # fmt: skip
+    resting(venue)
+
+    async def go():
+        task = asyncio.create_task(app.run(duration_seconds=4.0))  # retries at +1 s, +2 s
+        await asyncio.sleep(0.05)
+        app.control.halt("reconciliation mismatch: 1068")  # internal halt, no external retrier
+        await task
+
+    run(go())
+    assert run(venue.get_open_orders(TID)) == []
+    assert len(store.all_events("kill_retry")) == 2
