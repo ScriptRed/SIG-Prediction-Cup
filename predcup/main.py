@@ -27,6 +27,7 @@ import yaml
 from dotenv import load_dotenv
 
 from predcup.app import LIVE_ENABLED, App, LogAlerter, load_targets
+from predcup.edge_watch import register_edge_watcher
 from predcup.killfile import KillFileWatcher
 from predcup.market_map import fusion_race_keys
 from predcup.store import EventStore
@@ -138,6 +139,7 @@ async def amain(duration: float | None) -> int:
             if watchdog is not None:
                 app.set_watchdog(watchdog)  # READY=1 once the loops run, then pings
             app.add_task(app.daily_summary(alerter).run)
+            register_edge_watcher(app, settings, cup_rows, map_rows)  # alerts only; off unless enabled
             if bot is not None:
                 from predcup.alerts import CommandRouter, load_telegram_config
 
