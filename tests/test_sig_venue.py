@@ -456,3 +456,16 @@ def test_get_pnl_409_missing_valuation_is_an_error_not_zero():
     venue, _ = make_venue(rec)
     with pytest.raises(SigApiError):
         run(venue.get_pnl(TID, period="all"))
+
+
+# --- audit 2026-10-01 M3: Retry-After that isn't a number of seconds -------------------
+
+
+@pytest.mark.parametrize("header", ["Wed, 01 Oct 2026 17:00:30 GMT", "soon", "-5", ""])
+def test_unparseable_retry_after_falls_back_to_backoff(header):
+    seen = []
+    rec = Recorder([(429, err("RATE_LIMITED"), {"Retry-After": header}), (200, PLACED, None)])
+    venue, sleeps = make_venue(rec, rate_limited=lambda e, ra: seen.append(ra))
+    assert run(venue.place_order(order())).id == "1001"
+    assert seen == [None]
+    assert len(sleeps) == 1 and 0 < sleeps[0] <= 31

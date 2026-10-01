@@ -94,6 +94,17 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _retry_after_seconds(raw: str | None) -> float | None:
+    """Retry-After as a non-negative number of seconds, else None (the spec
+    doesn't fix the format; HTTP also allows a date). None -> our own
+    exponential backoff, never an exception mid-request."""
+    try:
+        value = float(raw) if raw else None
+    except ValueError:
+        return None
+    return value if value is not None and value >= 0 else None
+
+
 def _error_of(body: Any) -> tuple[str, str, dict]:
     if isinstance(body, dict) and isinstance(body.get("error"), dict):
         e = body["error"]
@@ -184,8 +195,7 @@ class SigVenue(Venue):
                                               params=params, json=body)  # fmt: skip
             data = _json(resp)
             code, message, details = _error_of(data)
-            retry_after_raw = resp.headers.get("Retry-After")
-            retry_after = float(retry_after_raw) if retry_after_raw else None
+            retry_after = _retry_after_seconds(resp.headers.get("Retry-After"))
             status = resp.status_code
 
             verdict = classify(resp, data) if classify else None
