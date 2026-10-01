@@ -74,3 +74,26 @@ def test_log_persists_across_reconnect(tmp_path):
 
     assert len(events) == 1
     assert events[0]["payload"] == {"x": 1}
+
+
+# --- perf 2026-10-01: commits must not fsync (event loop blocked ~6-10 ms per event) ---
+
+
+def test_store_uses_wal_with_synchronous_normal(tmp_path):
+    import time
+
+    store = EventStore(tmp_path / "e.db")
+    assert store._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    assert store._conn.execute("PRAGMA synchronous").fetchone()[0] == 1  # NORMAL
+    start = time.perf_counter()
+    for i in range(200):
+        store.log("loop_lag", {"i": i})
+    assert (time.perf_counter() - start) / 200 < 0.002  # well under a millisecond each without fsync
+    assert len(store.all_events("loop_lag")) == 200
+
+
+def test_events_survive_a_reopen(tmp_path):
+    store = EventStore(tmp_path / "e.db")
+    store.log("order", {"k": 1})
+    store.close()
+    assert EventStore(tmp_path / "e.db").all_events("order")[0]["payload"] == {"k": 1}

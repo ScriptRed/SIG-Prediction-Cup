@@ -126,6 +126,12 @@ class EventStore:
     def __init__(self, db_path: str | Path) -> None:
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
+        # NORMAL, not the default FULL: in WAL mode a commit then doesn't wait
+        # for an fsync (6-10 ms each, ~100 events per re-quote cycle blocked
+        # the event loop for ~1 s; 2026-10-01 profile). A process crash loses
+        # nothing; an OS crash or power loss can lose the last few events.
+        # Fills and positions are re-read from the venue at reconciliation.
+        self._conn.execute("PRAGMA synchronous=NORMAL")
         for statement in _SCHEMA:
             self._conn.execute(statement)
         self._conn.commit()
