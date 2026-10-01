@@ -469,3 +469,74 @@ def test_unparseable_retry_after_falls_back_to_backoff(header):
     assert run(venue.place_order(order())).id == "1001"
     assert seen == [None]
     assert len(sleeps) == 1 and 0 < sleeps[0] <= 31
+
+
+# --- 2026-10-01 launch: a timeout on an order post is "outcome unknown" ------------------
+# The engine may have accepted the order before the response was lost, so
+# a timeout is handled exactly like 502 ORDER_STATUS_UNKNOWN: retry with
+# the same key and identical payload, then OrderStatusUnknown.
+
+
+class TimeoutThen(Recorder):
+    """Raise ReadTimeout for the first `n` non-tournament requests."""
+
+    def __init__(self, n, responses):
+        super().__init__(responses)
+        self.n = n
+
+    def __call__(self, request):
+        if not request.url.path.endswith(f"/tournaments/{SLUG}") and self.n > 0:
+            self.n -= 1
+            self.requests.append(request)
+            raise httpx.ReadTimeout("simulated", request=request)
+        return super().__call__(request)
+
+
+def test_batch_timeout_is_retried_with_same_key_and_payload():
+    body = {"results": [_item(0, orderId=7, open=True)]}
+    rec = TimeoutThen(1, [(200, body, None)])
+    venue, sleeps = make_venue(rec)
+    res = run(venue.place_batch([order()], batch_key="bk"))
+    assert res[0].ok and res[0].order.id == "7"
+    assert len(rec.requests) == 2 and rec.requests[0].content == rec.requests[1].content
+    assert rec.body(0)["idempotencyKey"] == "bk" and len(sleeps) == 1
+
+
+def test_persistent_batch_timeout_raises_status_unknown_with_the_key():
+    rec = TimeoutThen(99, [])
+    venue, _ = make_venue(rec)
+    with pytest.raises(OrderStatusUnknown) as e:
+        run(venue.place_batch([order()], batch_key="bk"))
+    assert e.value.idempotency_key == "bk"
+    assert {r.content for r in rec.requests} == {rec.requests[0].content}  # identical every time
+
+
+def test_single_order_timeout_is_status_unknown_too():
+    rec = TimeoutThen(99, [])
+    venue, _ = make_venue(rec)
+    with pytest.raises(OrderStatusUnknown) as e:
+        run(venue.place_order(order()))
+    assert e.value.idempotency_key == "key-1"
+    assert {rec.body(i)["idempotencyKey"] for i in range(len(rec.requests))} == {"key-1"}
+
+
+def test_connect_error_on_an_order_post_is_also_unknown():
+    class ConnectFail(Recorder):
+        def __call__(self, request):
+            if request.url.path.endswith("/orders/batch"):
+                self.requests.append(request)
+                raise httpx.ConnectError("refused", request=request)
+            return super().__call__(request)
+
+    venue, _ = make_venue(ConnectFail([]))
+    with pytest.raises(OrderStatusUnknown):
+        run(venue.place_batch([order()], batch_key="bk"))
+
+
+def test_timeout_on_a_read_or_cancel_is_not_retried_and_raises():
+    for call in (lambda v: v.get_open_orders(TID), lambda v: v.cancel_all(TID, exchange_id="1077")):
+        rec = TimeoutThen(1, [])
+        venue, _ = make_venue(rec)
+        with pytest.raises(httpx.ReadTimeout):
+            run(call(venue))
+        assert len(rec.requests) == 1

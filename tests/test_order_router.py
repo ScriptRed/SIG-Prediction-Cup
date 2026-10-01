@@ -358,3 +358,34 @@ def test_test_order_without_expiry_is_refused(tmp_path):
     router, *_ = make(tmp_path, venue=spy)
     t = order("t", price=0.005).model_copy(update={"expiration_date": None, "quantity": 1})
     assert run(router.place_test_order(t)) is None and spy.batches == []
+
+
+# --- 2026-10-01 launch: a timed-out batch suspends quoting like ORDER_STATUS_UNKNOWN ----
+
+
+def test_timed_out_batch_keeps_orders_counted_and_blocks_until_reconciled(tmp_path):
+    import httpx
+
+    from predcup.venues.sig import SigVenue
+
+    def handler(request):
+        if request.url.path.endswith("/tournaments/cup"):
+            return httpx.Response(200, json={"id": TID})
+        if request.url.path.endswith("/orders/batch"):
+            raise httpx.ReadTimeout("SIG slow at the open", request=request)
+        if request.url.path.endswith("/orders/cancel-all"):
+            return httpx.Response(200, json={"cancelled": 0, "errors": []})
+        return httpx.Response(200, json={"data": [], "pagination": {"limit": 200, "hasMore": False, "nextCursor": None}})
+
+    async def nosleep(s):
+        pass
+
+    venue = SigVenue(httpx.AsyncClient(transport=httpx.MockTransport(handler)), base_url="https://sig.test/api/v1",
+                     api_key="k", tournament_slug="cup", on_rate_limited=lambda e, r: None, sleep=nosleep)  # fmt: skip
+    router, _, store, alerts, _, risk = make(tmp_path, venue=venue)
+    res = run(router.requote(upd(order("a")), NOW))  # must not raise
+    assert router.blocked and "unknown" in router.blocked.lower()
+    assert [(o.idempotency_key, o.status) for o in risk._tracked_orders()] == [("a", OrderStatus.PENDING)]
+    assert res.placed == 0
+    res2 = run(router.requote(upd(order("b")), NOW))  # next cycle: no new key while unresolved
+    assert res2.blocked and [o.idempotency_key for o in risk._tracked_orders()] == ["a"]

@@ -13,6 +13,7 @@ CLAUDE.md rules implemented here:
   502 ORDER_STATUS_UNKNOWN is retried with the same key (the engine replays
   a resolved order, never double-places); if it persists, OrderStatusUnknown
   is raised so the caller reconciles. Never a new key for the same order.
+  A timeout or network error on an order post is treated the same way.
 - Every 429 is reported through `on_rate_limited` (RiskManager.record_rate_limited).
 - Other 4xx are never retried: SigOrderRejected, for risk.record_order_rejection.
 
@@ -191,8 +192,21 @@ class SigVenue(Venue):
         resp: httpx.Response | None = None
         data: Any = None
         for attempt in range(self._max_retries + 1):
-            resp = await self._client.request(method, f"{self._base}{path}", headers=self._headers,
-                                              params=params, json=body)  # fmt: skip
+            try:
+                resp = await self._client.request(method, f"{self._base}{path}", headers=self._headers,
+                                                  params=params, json=body)  # fmt: skip
+            except httpx.TransportError:
+                # Timeout or network error. On an order post the engine may
+                # have accepted it before the response was lost: outcome
+                # unknown, handled exactly like 502 ORDER_STATUS_UNKNOWN (same
+                # key, identical payload, then OrderStatusUnknown). Reads and
+                # cancels raise to their caller, which re-reads or re-verifies.
+                if unknown_key is None:
+                    raise
+                if attempt < self._max_retries:
+                    await self._sleep(self._backoff(attempt, None))
+                    continue
+                raise OrderStatusUnknown(unknown_key) from None
             data = _json(resp)
             code, message, details = _error_of(data)
             retry_after = _retry_after_seconds(resp.headers.get("Retry-After"))
