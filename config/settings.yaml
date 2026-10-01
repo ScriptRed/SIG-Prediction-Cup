@@ -155,6 +155,20 @@ edge_watcher:
   alert_cooldown_seconds: 600 # per market
   verified_only: true
 
+# predcup/seed_lag.py: SIG mid vs Kalshi mid every interval for mapped races,
+# to the seed_lag table (read-only research). scripts/seed_lag_report.py
+# estimates how long SIG's seeds take to follow a Kalshi move.
+seed_lag:
+  enabled: false
+  interval_seconds: 30
+  verified_only: true
+  report: # scripts/seed_lag_report.py defaults
+    min_move: 0.01 # Kalshi mid change between consecutive samples that counts as a move
+    follow_fraction: 0.5 # SIG has followed once its mid covers this share of the move
+    horizon_seconds: 1800 # not followed within this -> counted as not followed
+    max_gap_seconds: 90 # consecutive samples further apart than this are not compared
+    max_lag_samples: 20 # lagged-correlation estimate, in samples
+
 alerts:
   gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert
   yes_no_arb_threshold: 0.01 # YES+NO sum deviation from 1 that triggers an alert

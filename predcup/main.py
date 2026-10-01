@@ -30,6 +30,7 @@ from predcup.app import LIVE_ENABLED, App, LogAlerter, load_targets
 from predcup.edge_watch import register_edge_watcher
 from predcup.killfile import KillFileWatcher
 from predcup.market_map import fusion_race_keys
+from predcup.seed_lag import register_seed_lag_logger
 from predcup.store import EventStore
 from predcup.venues.kalshi import KalshiReadOnly
 from predcup.venues.sig import SigVenue
@@ -140,6 +141,7 @@ async def amain(duration: float | None) -> int:
                 app.set_watchdog(watchdog)  # READY=1 once the loops run, then pings
             app.add_task(app.daily_summary(alerter).run)
             register_edge_watcher(app, settings, cup_rows, map_rows)  # alerts only; off unless enabled
+            register_seed_lag_logger(app, settings, cup_rows, map_rows)  # read-only; off unless enabled
             if bot is not None:
                 from predcup.alerts import CommandRouter, load_telegram_config
 
