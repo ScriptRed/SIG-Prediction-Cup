@@ -156,7 +156,7 @@ class App:
         )  # fmt: skip
         self.looplag = LoopLagMonitor(load_loop_lag_config(settings), store, alerter, clock=mono)
         self._quotes: dict[str, KalshiQuote] = {}
-        self._halt_handled = False
+        self._kill_lock = asyncio.Lock()
         self._kill_result: KillSwitchResult | None = None
         self._extra_tasks: list[Callable[[], Awaitable[None]]] = []
         self.watchdog = None  # set_watchdog(): systemd only
@@ -237,14 +237,17 @@ class App:
             await self._do_kill(self.control.reason)
 
     async def _do_kill(self, reason: str) -> KillSwitchResult:
-        if self._halt_handled:
-            return self._kill_result or KillSwitchResult(success=True, attempts=0, remaining_order_ids=[])
-        self._halt_handled = True
         # One rule, any mode: kill means no open Cup orders. The latched
         # RiskManager.kill() cancels tournament-wide, verifies via
-        # GET /orders?status=open, retries, and alerts either way.
-        self._kill_result = await self.risk.kill(reason)
-        return self._kill_result
+        # GET /orders?status=open, retries, and alerts either way. Only a
+        # verified-clean kill is remembered: a kill that raised or left
+        # orders open runs again on the next request (KILL file re-poll,
+        # another /kill). Concurrent kills are serialized.
+        async with self._kill_lock:
+            if self._kill_result is not None and self._kill_result.success:
+                return self._kill_result
+            self._kill_result = await self.risk.kill(reason)
+            return self._kill_result
 
     # --- loops ------------------------------------------------------------------------
 

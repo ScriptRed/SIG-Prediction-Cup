@@ -281,3 +281,69 @@ def test_daily_summary_uses_total_cup_pnl(tmp_path):
     reporter = app.daily_summary(alerter=app.alerter)
     text = run(reporter.compose())
     assert "P&L: total +340.00" in text
+
+
+# --- audit 2026-10-01 H1: a failed kill must be retried, not reported as done ----------
+
+
+class FlakyCancelVenue(BookVenue):
+    def __init__(self, failures):
+        super().__init__()
+        self.failures = failures
+
+    async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
+        if self.failures > 0:
+            self.failures -= 1
+            raise ConnectionError("venue unreachable")
+        return await super().cancel_all(tournament_id, exchange_id, market_id)
+
+
+def test_kill_that_raised_is_retried_by_the_next_kill(tmp_path):
+    venue = FlakyCancelVenue(failures=1)
+    app, _ = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    resting(venue)
+    with pytest.raises(ConnectionError):
+        run(app.kill("KILL file"))
+    result = run(app.kill("KILL file"))  # the watcher's retry on its next poll
+    assert result.success and result.attempts >= 1
+    assert run(venue.get_open_orders(TID)) == []
+
+
+def test_kill_file_watcher_retries_until_orders_are_gone(tmp_path):
+    venue = FlakyCancelVenue(failures=1)
+    app, _ = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    resting(venue)
+    kill_file = tmp_path / "KILL"
+    kill_file.touch()
+    watcher = KillFileWatcher(kill_file, app.kill, poll_interval_seconds=0.01)
+    assert run(watcher.check_once()) is False  # raised: not marked done
+    assert run(watcher.check_once()) is True
+    assert run(venue.get_open_orders(TID)) == []
+
+
+class CountingStubbornVenue(StubbornVenue):
+    def __init__(self):
+        super().__init__()
+        self.cancel_calls = 0
+
+    async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
+        self.cancel_calls += 1
+        return await super().cancel_all(tournament_id, exchange_id, market_id)
+
+
+def test_failed_kill_result_is_retried_not_cached(tmp_path):
+    venue = CountingStubbornVenue()  # claims success, cancels nothing
+    app, _ = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    resting(venue)
+    assert not run(app.kill("first")).success
+    calls = venue.cancel_calls
+    assert not run(app.kill("second")).success
+    assert venue.cancel_calls > calls  # really tried again
+
+
+def test_successful_kill_is_not_repeated(tmp_path):
+    venue = BookVenue()
+    app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    assert run(app.kill("one")).success
+    assert run(app.kill("two")).success
+    assert len(store.all_events("kill")) == 1
