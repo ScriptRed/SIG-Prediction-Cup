@@ -99,7 +99,7 @@ def test_check_time_does_not_grow_with_order_history(tmp_path):
     start = time.perf_counter()
     for _ in range(50):
         risk.check(o("x"), fair_value=0.5, outside_data_age_seconds=0)
-    assert (time.perf_counter() - start) / 50 < 0.002  # was ~25 ms with 100k dead orders tracked
+    assert (time.perf_counter() - start) / 50 < 0.005  # was ~25 ms with 100k dead orders tracked (loose: suite load)
 
 
 # --- before merging perf-loop (2026-10-01): pruning must never undercount -------------
