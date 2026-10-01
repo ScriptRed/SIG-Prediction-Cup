@@ -81,31 +81,40 @@ class Reconciler:
 
         return lookup
 
+    async def _sync_fills(self) -> None:
+        known = {f.id for f in self._store.fills(self._tid)}
+        for fill in await self._venue.get_new_fills(self._tid, known):
+            if self._store.record_fill(fill):
+                self._store.log("fill", {"fill_id": fill.id, "order_id": fill.order_id, "exchange_id": fill.exchange_id,
+                                         "side": fill.side, "quantity": fill.quantity, "price": fill.price})  # fmt: skip
+                # Every fill, the bot's or a manual one: 1/5/30-min markouts.
+                # TODO(api): assumes Fill.price is YES-normalized (as for
+                # orders); confirm with go-live gate (f).
+                for task in self._risk.schedule_markouts(fill, self.price_lookup(fill.exchange_id)):
+                    self._markout_tasks.add(task)
+                    task.add_done_callback(self._markout_tasks.discard)
+
     def pending_markouts(self) -> list[asyncio.Task]:
         return [t for t in self._markout_tasks if not t.done()]
 
     async def run_once(self) -> ReconResult:
         swept = self._router.swept_snapshot()  # before the fill sync, see OrderRouter.release_swept
-        try:
-            known = {f.id for f in self._store.fills(self._tid)}
-            for fill in await self._venue.get_new_fills(self._tid, known):
-                if self._store.record_fill(fill):
-                    self._store.log("fill", {"fill_id": fill.id, "order_id": fill.order_id, "exchange_id": fill.exchange_id,
-                                             "side": fill.side, "quantity": fill.quantity, "price": fill.price})  # fmt: skip
-                    # Every fill, the bot's or a manual one: 1/5/30-min markouts.
-                    # TODO(api): assumes Fill.price is YES-normalized (as for
-                    # orders); confirm with go-live gate (f).
-                    for task in self._risk.schedule_markouts(fill, self.price_lookup(fill.exchange_id)):
-                        self._markout_tasks.add(task)
-                        task.add_done_callback(self._markout_tasks.discard)
-            positions = await self._venue.get_positions(self._tid)
-        except Exception as e:  # any read failure: not a mismatch, but not clean either
-            return self._read_failed(repr(e)[:300])
+        # A fill can land between the fill sync and the positions read; that
+        # looks like a mismatch. Sync and compare once more before declaring one.
+        for attempt in (1, 2):
+            try:
+                await self._sync_fills()
+                positions = await self._venue.get_positions(self._tid)
+            except Exception as e:  # any read failure: not a mismatch, but not clean either
+                return self._read_failed(repr(e)[:300])
+            venue_q = {p.exchange_id: float(p.quantity) for p in positions if abs(p.quantity) > _TOLERANCE}
+            local_q = {ex: float(q) for ex, q in self._store.local_positions(self._tid).items() if abs(q) > _TOLERANCE}
+            diffs = diff_positions(local_q, venue_q)
+            if not diffs:
+                break
+            if attempt == 1:
+                self._store.log("reconciliation_recheck", {"diffs": {ex: list(v) for ex, v in diffs.items()}})
         self._failures = 0
-
-        venue_q = {p.exchange_id: float(p.quantity) for p in positions if abs(p.quantity) > _TOLERANCE}
-        local_q = {ex: float(q) for ex, q in self._store.local_positions(self._tid).items() if abs(q) > _TOLERANCE}
-        diffs = diff_positions(local_q, venue_q)
 
         if diffs:
             detail = "; ".join(f"{ex}: local {a:g} vs venue {b:g}" for ex, (a, b) in sorted(diffs.items()))

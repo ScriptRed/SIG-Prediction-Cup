@@ -179,3 +179,42 @@ def test_shadow_compares_but_never_moves_ramp_or_halts(tmp_path):
     venue.positions = []
     assert run(rec.run_once()).status == "clean"
     assert risk.recon == [] and risk.positions == []
+
+
+# --- audit 2026-10-01 M2: a fill landing between the fill sync and the positions read ------
+
+
+class RacyVenue(FakeVenue):
+    """The positions read already includes a fill the fills read didn't have
+    yet (it landed in between); the next fills read has it."""
+
+    def __init__(self):
+        super().__init__()
+        self.pending_fill = fill(2, 5)
+
+    async def get_positions(self, tournament_id):
+        if self.pending_fill is not None:
+            self.fills.append(self.pending_fill)
+            self.pending_fill = None
+        return await super().get_positions(tournament_id)
+
+
+def test_fill_landing_mid_reconciliation_is_not_a_mismatch(tmp_path):
+    rec, venue, store, risk, router, control, alerts = make(tmp_path)
+    racy = RacyVenue()
+    racy.fills = [fill(1, 10)]
+    racy.positions = [position(15)]
+    rec._venue = racy
+    res = run(rec.run_once())
+    assert res.status == "clean"
+    assert not control.halted and risk.recon == [(True, "")]
+    assert store.local_positions(TID) == {"1077": 15}
+
+
+def test_persistent_mismatch_still_halts_after_the_recheck(tmp_path):
+    rec, venue, store, risk, router, control, alerts = make(tmp_path)
+    venue.fills = [fill(1, 10)]
+    venue.positions = [position(12)]
+    assert run(rec.run_once()).status == "mismatch"
+    assert len(venue.fill_calls) == 2  # synced twice before declaring it
+    assert control.halted
