@@ -91,6 +91,10 @@ def format_price(price: float) -> float:
     return p
 
 
+def _ts(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -134,6 +138,7 @@ class TournamentPnl:
     unrealized_pnl: float
     total_account_value: float
     roi: float | None
+    derived: bool = False  # period_pnl computed by us (API periodPnl was null)
 
 
 class SigVenue(Venue):
@@ -165,6 +170,7 @@ class SigVenue(Venue):
         self._backoff_base = backoff_base_seconds
         self._backoff_cap = backoff_cap_seconds
         self._tournament_id: str | None = None
+        self._summary: dict | None = None  # startDate / initialBalance don't change
 
     # --- plumbing -------------------------------------------------------------
 
@@ -506,13 +512,32 @@ class SigVenue(Venue):
             raise ValueError(f"period must be one of {PNL_PERIODS}, got {period!r}")
         await self._check(tournament_id)
         d = await self._get(f"/tournaments/{self._slug}/portfolio/pnl", {"period": period})
+        period_pnl = None if d.get("periodPnl") is None else float(d["periodPnl"])
+        derived = False
+        if period_pnl is None:
+            # Seen live on the Cup's first day: periodPnl is null for every
+            # period (no snapshot baseline yet). If the window starts before
+            # the Cup did (or is `all`), the baseline is the initial balance,
+            # so P&L = account value - initial balance. Otherwise unknown.
+            summary = await self._summary_cached()
+            start, initial = summary.get("startDate"), summary.get("initialBalance")
+            window = d.get("periodStart")
+            if start and initial is not None and (window is None or _ts(window) <= _ts(start)):
+                period_pnl = float(d["totalAccountValue"]) - float(initial)
+                derived = True
         return TournamentPnl(
             period=d["period"],
-            period_pnl=None if d.get("periodPnl") is None else float(d["periodPnl"]),
+            period_pnl=period_pnl,
             unrealized_pnl=float(d["unrealizedPnl"]),
             total_account_value=float(d["totalAccountValue"]),
             roi=d.get("roi"),
+            derived=derived,
         )
+
+    async def _summary_cached(self) -> dict:
+        if self._summary is None:
+            self._summary = await self.tournament_summary()
+        return self._summary
 
     async def get_balance(self, tournament_id: str) -> float:
         await self._check(tournament_id)

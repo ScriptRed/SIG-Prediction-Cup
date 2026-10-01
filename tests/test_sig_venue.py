@@ -36,7 +36,8 @@ class Recorder:
     def __call__(self, request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith(f"/tournaments/{SLUG}") and request.method == "GET":
             self.tournament_reads += 1
-            return httpx.Response(200, json={"id": TID, "slug": SLUG, "myBalance": 98765.5})
+            return httpx.Response(200, json={"id": TID, "slug": SLUG, "myBalance": 98765.5, "initialBalance": 100000,
+                                             "startDate": "2026-10-01T16:00:00.000Z", "status": "active"})
         self.requests.append(request)  # only the calls under test
         status, body, headers = self.responses.pop(0)
         return httpx.Response(status, json=body, headers=headers or {})
@@ -540,3 +541,40 @@ def test_timeout_on_a_read_or_cancel_is_not_retried_and_raises():
         with pytest.raises(httpx.ReadTimeout):
             run(call(venue))
         assert len(rec.requests) == 1
+
+
+
+# --- 2026-10-01 live: periodPnl is null on the Cup's first day --------------------------
+# Raw response seen live after a fill (period=day): periodPnl null,
+# periodStart 2026-09-30T16:14 (rolling 24 h, before the 16:00 start),
+# unrealizedPnl -37.81, totalAccountValue 99962.19.
+
+LIVE_DAY = {"period": "day", "periodStart": "2026-09-30T16:14:07.523Z", "periodEnd": "2026-10-01T16:14:07.523Z",
+            "periodPnl": None, "unrealizedPnl": -37.81, "totalAccountValue": 99962.19,
+            "totalHoldingsValue": 882.19, "totalCostBasis": 920, "roi": None, "sharpe": None}  # fmt: skip
+
+
+def test_null_period_pnl_from_before_the_cup_started_is_account_value_minus_initial_balance():
+    venue, _ = make_venue(Recorder([(200, LIVE_DAY, None)]))
+    pnl = run(venue.get_pnl(TID, period="day"))
+    assert pnl.period_pnl == pytest.approx(-37.81)
+    assert pnl.derived  # not the API's own periodPnl
+
+
+def test_null_period_pnl_for_all_uses_the_initial_balance():
+    body = {**LIVE_DAY, "period": "all", "periodStart": None}
+    venue, _ = make_venue(Recorder([(200, body, None)]))
+    assert run(venue.get_pnl(TID, period="all")).period_pnl == pytest.approx(-37.81)
+
+
+def test_null_period_pnl_with_a_window_starting_after_the_cup_is_unknown():
+    body = {**LIVE_DAY, "periodStart": "2026-10-02T16:14:07.523Z"}  # baseline not knowable
+    venue, _ = make_venue(Recorder([(200, body, None)]))
+    assert run(venue.get_pnl(TID, period="day")).period_pnl is None
+
+
+def test_api_period_pnl_is_used_as_is():
+    body = {**LIVE_DAY, "periodPnl": -14.0}
+    venue, _ = make_venue(Recorder([(200, body, None)]))
+    pnl = run(venue.get_pnl(TID, period="day"))
+    assert pnl.period_pnl == -14.0 and not pnl.derived
