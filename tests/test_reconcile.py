@@ -57,6 +57,12 @@ class FakeRisk:
     def schedule_markouts(self, fill, lookup):
         return []
 
+    def update_bankroll(self, bankroll):
+        self.bankroll = bankroll
+
+    def update_daily_pnl(self, pnl):
+        self.daily_pnl = pnl
+
 
 class FakeRouter:
     def __init__(self):

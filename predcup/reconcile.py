@@ -128,11 +128,29 @@ class Reconciler:
                                               quantity=float(p.quantity), price=float(price)))  # fmt: skip
         self._store.log("reconciliation", {"status": "clean", "positions": len(exposures), "shadow": self._shadow})
         self._risk.update_positions(exposures)
+        await self._feed_pnl()
         if not self._shadow:
             self._risk.record_reconciliation(True)
             self._router.release_swept(swept)
             self._router.clear_block("clean reconciliation")
         return ReconResult("clean")
+
+    async def _feed_pnl(self) -> None:
+        """Today's Cup P&L -> the daily loss stop; account value -> bankroll
+        (caps are fractions of it). A null P&L or a failed read changes
+        nothing and is logged; it never reads as 0."""
+        get_pnl = getattr(self._venue, "get_pnl", None)
+        if get_pnl is None:
+            return
+        try:
+            pnl = await get_pnl(self._tid, period="day")
+        except Exception as e:
+            self._store.log("pnl_read_failed", {"error": repr(e)[:300]})
+            return
+        self._risk.update_bankroll(pnl.total_account_value)
+        if pnl.period_pnl is not None:
+            self._risk.update_daily_pnl(pnl.period_pnl)
+        self._store.log("pnl", {"day_pnl": pnl.period_pnl, "account_value": pnl.total_account_value})
 
     def _read_failed(self, detail: str) -> ReconResult:
         self._failures += 1

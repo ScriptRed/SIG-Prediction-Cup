@@ -126,3 +126,60 @@ def test_one_sided_book_uses_no_price(tmp_path):
         return await lookup(1)
 
     assert asyncio.run(go()) is None
+
+
+# --- audit 2026-10-01 H4: reconciliation feeds day P&L and account value into risk ------
+
+from predcup.models import Order  # noqa: E402
+from predcup.venues.sig import TournamentPnl  # noqa: E402
+
+
+class PnlMock(MockExchange):
+    def __init__(self, period_pnl, account_value=100_000.0, fail=False):
+        super().__init__()
+        self.period_pnl, self.account_value, self.fail = period_pnl, account_value, fail
+
+    async def get_pnl(self, tournament_id, period):
+        if self.fail:
+            raise ConnectionError("pnl read failed")
+        assert period == "day"
+        return TournamentPnl(period="day", period_pnl=self.period_pnl, unrealized_pnl=0.0,
+                             total_account_value=self.account_value, roi=None)  # fmt: skip
+
+
+def _bot_order():
+    return Order(exchange_id="1068", market_id="379", tournament_id=TID, party_id="D", race_key="MA-Senate",
+                 side="yes", action="buy", quantity=10, price=0.5, idempotency_key="b")  # fmt: skip
+
+
+def _real_limits_risk(tmp_path, venue):
+    rec, risk, store, _ = make(tmp_path, venue)
+    risk._limits = risk._limits.__class__(**{**risk._limits.__dict__, "daily_loss_stop_fraction": 0.08})
+    return rec, risk, store
+
+
+def test_day_loss_beyond_the_stop_blocks_orders(tmp_path):
+    rec, risk, store = _real_limits_risk(tmp_path, PnlMock(period_pnl=-9_000.0, account_value=91_000.0))
+    assert risk.check(_bot_order(), fair_value=0.5, outside_data_age_seconds=0).approved
+    asyncio.run(rec.run_once())
+    d = risk.check(_bot_order(), fair_value=0.5, outside_data_age_seconds=0)
+    assert not d.approved and d.reason == "daily loss stop triggered"
+
+
+def test_account_value_becomes_the_bankroll(tmp_path):
+    rec, risk, _ = _real_limits_risk(tmp_path, PnlMock(period_pnl=1_000.0, account_value=101_000.0))
+    asyncio.run(rec.run_once())
+    assert risk._bankroll == 101_000.0 and risk._daily_realized_pnl == 1_000.0
+
+
+def test_null_day_pnl_changes_nothing_but_bankroll(tmp_path):
+    rec, risk, _ = _real_limits_risk(tmp_path, PnlMock(period_pnl=None, account_value=99_000.0))
+    asyncio.run(rec.run_once())
+    assert risk._daily_realized_pnl == 0.0 and risk._bankroll == 99_000.0
+
+
+def test_pnl_read_failure_is_logged_not_a_reconciliation_failure(tmp_path):
+    rec, risk, store = _real_limits_risk(tmp_path, PnlMock(period_pnl=0.0, fail=True))
+    assert asyncio.run(rec.run_once()).status == "clean"
+    assert store.all_events("pnl_read_failed")
+    assert risk._bankroll == 100_000.0
