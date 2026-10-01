@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from predcup.control import TradingControl
 from predcup.risk import Alerter, PositionExposure
@@ -57,6 +58,7 @@ class Reconciler:
         market_meta: dict[str, tuple[str, str | None, str | None]],  # exchange_id -> (market_id, party, race_key)
         shadow: bool,
         max_read_failures: int = 3,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._venue = venue
         self._store = store
@@ -69,6 +71,7 @@ class Reconciler:
         self._shadow = shadow
         self._max_failures = max_read_failures
         self._failures = 0
+        self._clock = clock or (lambda: datetime.now(timezone.utc))  # same clock as RiskManager
         self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
 
     def price_lookup(self, exchange_id: str) -> Callable[[int], Awaitable[float | None]]:
@@ -104,6 +107,9 @@ class Reconciler:
         for attempt in (1, 2):
             try:
                 await self._sync_fills()
+                # Taken BEFORE the read: a fill confirmed before this instant
+                # is in these positions (RiskManager.update_positions).
+                positions_as_of = self._clock()
                 positions = await self._venue.get_positions(self._tid)
             except Exception as e:  # any read failure: not a mismatch, but not clean either
                 return self._read_failed(repr(e)[:300])
@@ -136,7 +142,7 @@ class Reconciler:
             exposures.append(PositionExposure(market_id=market_id, party_id=party, race_key=race,
                                               quantity=float(p.quantity), price=float(price)))  # fmt: skip
         self._store.log("reconciliation", {"status": "clean", "positions": len(exposures), "shadow": self._shadow})
-        self._risk.update_positions(exposures)
+        self._risk.update_positions(exposures, as_of=positions_as_of)
         await self._feed_pnl()
         if not self._shadow:
             self._risk.record_reconciliation(True)

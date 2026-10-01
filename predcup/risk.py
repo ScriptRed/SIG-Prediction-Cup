@@ -426,10 +426,12 @@ class RiskManager:
         self._orders: dict[str, Order] = {}
         self._halted_markets: set[str] = set()
         self._size_ramp = size_ramp
-        # Venue positions, fed by reconciliation. Until the first feed,
-        # fully-filled orders stand in for the positions they created.
+        # Venue positions, fed by reconciliation, and when that positions read
+        # started. A fully-filled order stands in for the position it created
+        # until a snapshot taken after its fill includes it.
         self._positions: list[PositionExposure] = []
-        self._positions_known = False
+        self._positions_as_of: datetime | None = None
+        self._filled_at: dict[str, datetime] = {}  # order key -> when we learned it filled
         self._killed = False
 
     def record_reconciliation(self, matched: bool, detail: str = "") -> None:
@@ -461,39 +463,45 @@ class RiskManager:
         cancelled or expired (see is_exposure_counted)."""
         key = order.id or order.idempotency_key
         self._orders[key] = order
+        if order.status == OrderStatus.FILLED:
+            self._filled_at[key] = self._now()
 
     def confirm_order_state(self, order_key: str, status: OrderStatus) -> None:
         if order_key not in self._orders:
             return
-        if self._never_counts_again(status):
-            # Forget it: it adds nothing to any exposure sum, and keeping every
-            # order ever placed made each check() slower with uptime.
+        if not is_exposure_counted(status):
+            # Cancelled/expired/rejected: forget it. It adds nothing to any
+            # exposure sum, and keeping every order ever placed made each
+            # check() slower with uptime.
             del self._orders[order_key]
+            self._filled_at.pop(order_key, None)
             return
         self._orders[order_key] = self._orders[order_key].model_copy(update={"status": status})
-
-    def _never_counts_again(self, status: OrderStatus) -> bool:
-        """Cancelled/expired/rejected never count; filled stops counting once
-        positions are known (its exposure is in the positions then)."""
-        return not is_exposure_counted(status) or (status == OrderStatus.FILLED and self._positions_known)
+        if status == OrderStatus.FILLED:
+            # Keeps counting until a positions snapshot taken after now
+            # includes the fill (update_positions); never undercounted.
+            self._filled_at.setdefault(order_key, self._now())
 
     def _tracked_orders(self) -> list[Order]:
         return list(self._orders.values())
 
-    def update_positions(self, positions: list[PositionExposure]) -> None:
+    def update_positions(self, positions: list[PositionExposure], *, as_of: datetime) -> None:
         """Replace the position snapshot (reconciliation loop, after a clean
-        comparison). From now on fully-filled orders stop counting: their
-        exposure is in the positions."""
+        comparison). `as_of` is when the positions read STARTED: a fill we
+        learned of before then is in these positions, so that filled order
+        stops counting and is forgotten; one learned of later keeps counting
+        until a later snapshot. Required, so no caller can skip it."""
         self._positions = list(positions)
-        self._positions_known = True
-        for key in [k for k, o in self._orders.items() if o.status == OrderStatus.FILLED]:
-            del self._orders[key]
+        self._positions_as_of = as_of
+        covered = [k for k, t in self._filled_at.items() if t <= as_of]
+        for key in covered:
+            self._orders.pop(key, None)
+            del self._filled_at[key]
 
     def _exposure_orders(self) -> list[Order]:
-        orders = self._tracked_orders()
-        if self._positions_known:
-            orders = [o for o in orders if o.status != OrderStatus.FILLED]
-        return orders
+        # Everything still tracked counts: open/pending orders, and filled
+        # orders whose fill no positions snapshot has covered yet.
+        return self._tracked_orders()
 
     @property
     def is_killed(self) -> bool:

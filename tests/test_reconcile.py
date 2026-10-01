@@ -51,8 +51,9 @@ class FakeRisk:
     def record_reconciliation(self, matched, detail=""):
         self.recon.append((matched, detail))
 
-    def update_positions(self, positions):
+    def update_positions(self, positions, *, as_of):
         self.positions = positions
+        self.positions_as_of = as_of
 
     def schedule_markouts(self, fill, lookup):
         return []
