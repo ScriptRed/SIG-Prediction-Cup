@@ -59,6 +59,8 @@ class Reconciler:
         shadow: bool,
         max_read_failures: int = 3,
         clock: Callable[[], datetime] | None = None,
+        fair_value_of: Callable[[str], float | None] | None = None,
+        max_sig_spread: float = 0.05,
     ) -> None:
         self._venue = venue
         self._store = store
@@ -74,14 +76,26 @@ class Reconciler:
         self._clock = clock or (lambda: datetime.now(timezone.utc))  # same clock as RiskManager
         self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
         self._pnl_missing = False
+        # Markouts: fresh polarity-adjusted Kalshi fair value (SIG YES terms)
+        # when there is one, else the SIG mid only if the spread is under
+        # max_sig_spread; a hollow book's mid is not a price.
+        self._fair_value_of = fair_value_of or (lambda exchange_id: None)
+        self._max_sig_spread = max_sig_spread
 
-    def price_lookup(self, exchange_id: str) -> Callable[[int], Awaitable[float | None]]:
-        """Markout price: the SIG mid for that exchange, None unless two-sided."""
+    def price_lookup(self, exchange_id: str) -> Callable[[int], Awaitable[tuple[float, str] | None]]:
+        """Markout price and its source: fresh Kalshi fair value if any, else
+        the SIG mid when SIG's spread is under max_sig_spread, else None
+        (logged as markout_unavailable, never a made-up number)."""
 
-        async def lookup(minutes: int) -> float | None:
+        async def lookup(minutes: int) -> tuple[float, str] | None:
+            fv = self._fair_value_of(exchange_id)
+            if fv is not None:
+                return fv, "kalshi_fair_value"
             tops = await self._venue.get_top_of_books([exchange_id], self._tid)
             bid, ask = tops.get(exchange_id, (None, None))
-            return None if bid is None or ask is None else (bid + ask) / 2
+            if bid is None or ask is None or not (ask - bid < self._max_sig_spread - 1e-9):
+                return None
+            return (bid + ask) / 2, "sig_mid"
 
         return lookup
 

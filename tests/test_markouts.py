@@ -183,3 +183,87 @@ def test_pnl_read_failure_is_logged_not_a_reconciliation_failure(tmp_path):
     assert asyncio.run(rec.run_once()).status == "clean"
     assert store.all_events("pnl_read_failed")
     assert risk._bankroll == 100_000.0
+
+
+# --- 2026-10-01 live: the DE-Senate R fill (1,000 NO at 0.920) showed a +0.423 markout --------
+# Raw fill: {"exchangeId": "1075", "price": 0.92, "quantity": -1000, "side": "no"}.
+# 0.92 is the NO price; stored as if YES-normalized and marked against the
+# mid of a hollow SIG book (bid 0.01, ask 0.97 -> ~0.49) it gave +0.423.
+
+
+def test_sig_no_side_fill_price_is_stored_yes_normalized():
+    import httpx
+
+    from predcup.venues.sig import SigVenue
+
+    raw = {"id": 1833391, "orderId": 732303, "exchangeId": "1075", "marketId": "386", "price": 0.92,
+           "quantity": -1000, "side": "no", "filledAt": "2026-10-01T16:05:59.180Z"}  # fmt: skip
+
+    def handler(request):
+        if request.url.path.endswith("/tournaments/cup"):
+            return httpx.Response(200, json={"id": TID})
+        return httpx.Response(200, json={"data": [raw], "pagination": {"limit": 200, "hasMore": False, "nextCursor": None}})
+
+    venue = SigVenue(httpx.AsyncClient(transport=httpx.MockTransport(handler)), base_url="https://sig.test/api/v1",
+                     api_key="k", tournament_slug="cup", on_rate_limited=lambda e, r: None)  # fmt: skip
+    [f] = asyncio.run(venue.get_new_fills(TID, known_ids=set()))
+    assert (f.side, f.action, f.quantity) == ("no", "buy", 1000)
+    assert f.price == pytest.approx(0.08)  # YES terms: sold YES at 0.08
+
+
+def _de_fill():
+    return Fill(id="1833391", order_id="732303", exchange_id="1075", tournament_id=TID, side="no", action="buy",
+                quantity=1000, price=0.08, filled_at=NOW)  # fmt: skip
+
+
+def _lookup_markouts(tmp_path, book, fair_value=None):
+    venue = MockExchange()
+    venue.set_top_of_book("1075", *book)
+    rec, risk, store, _ = make(tmp_path, venue)
+    rec._fair_value_of = lambda ex: fair_value
+
+    async def go():
+        await asyncio.gather(*risk.schedule_markouts(_de_fill(), rec.price_lookup("1075")))
+
+    asyncio.run(go())
+    return store
+
+
+def test_hollow_sig_book_gives_markout_unavailable_not_a_number(tmp_path):
+    store = _lookup_markouts(tmp_path, (0.01, 0.97))  # spread 96 points, mid ~0.49
+    assert store.all_events("markout") == []
+    assert len(store.all_events("markout_unavailable")) == 3
+
+
+def test_tight_sig_book_mid_is_used_when_no_fair_value(tmp_path):
+    store = _lookup_markouts(tmp_path, (0.01, 0.03))  # spread 2 points, mid 0.02
+    ev = store.all_events("markout")
+    assert {e["payload"]["source"] for e in ev} == {"sig_mid"}
+    assert all(e["payload"]["markout"] == pytest.approx(0.06) for e in ev)  # short YES at 0.08, now 0.02
+
+
+def test_spread_of_exactly_five_points_is_not_under_five(tmp_path):
+    store = _lookup_markouts(tmp_path, (0.10, 0.15))
+    assert store.all_events("markout") == []
+
+
+def test_kalshi_fair_value_is_preferred_over_sig_mid(tmp_path):
+    store = _lookup_markouts(tmp_path, (0.01, 0.03), fair_value=0.10)  # polarity-adjusted, SIG YES terms
+    ev = store.all_events("markout")
+    assert {e["payload"]["source"] for e in ev} == {"kalshi_fair_value"}
+    assert all(e["payload"]["later_price"] == pytest.approx(0.10) for e in ev)
+    assert all(e["payload"]["markout"] == pytest.approx(-0.02) for e in ev)
+
+
+def test_app_feeds_fresh_fair_values_to_markouts(tmp_path):
+    from datetime import timedelta
+
+    from predcup.fairvalue import FairValue
+    from test_app import make_app
+
+    app, _ = make_app(tmp_path, clock=lambda: NOW)
+    app.fair_values._current["1068"] = FairValue(ok=True, value=0.61, uncertainty=0.01, as_of=NOW)
+    app.fair_values._current["1059"] = FairValue(ok=True, value=0.3, uncertainty=0.01, as_of=NOW - timedelta(seconds=120))
+    assert app.reconciler._fair_value_of("1068") == 0.61
+    assert app.reconciler._fair_value_of("1059") is None  # stale
+    assert app.reconciler._fair_value_of("9999") is None  # no Kalshi mapping

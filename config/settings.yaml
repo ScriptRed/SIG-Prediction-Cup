@@ -185,6 +185,12 @@ seed_lag:
     max_gap_seconds: 90 # consecutive samples further apart than this are not compared
     max_lag_samples: 20 # lagged-correlation estimate, in samples
 
+# Markouts (1/5/30 min after every fill): marked against the fresh,
+# polarity-adjusted Kalshi fair value when there is one, else the SIG mid
+# only if SIG's spread is under this; otherwise markout_unavailable.
+markouts:
+  max_sig_spread: 0.05
+
 alerts:
   loop_error_cooldown_seconds: 600 # per loop: first error alerts at once, then at most one alert per 10 min (all logged)
   gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert

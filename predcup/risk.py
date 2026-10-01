@@ -763,8 +763,11 @@ class RiskManager:
     ) -> None:
         due = fill.filled_at + timedelta(minutes=minutes)
         await self._sleep(max(0.0, (due - self._now()).total_seconds()))
+        source = None
         try:
             later_price = await price_lookup(minutes)
+            if isinstance(later_price, tuple):  # (price, source), e.g. kalshi_fair_value / sig_mid
+                later_price, source = later_price
         except Exception as e:  # a failed read must not kill the task silently
             later_price = None
             reason = repr(e)[:200]
@@ -783,6 +786,7 @@ class RiskManager:
                 "minutes": minutes,
                 "fill_price": fill.price,
                 "later_price": later_price,
+                "source": source,
                 "markout": markout,
             },
         )

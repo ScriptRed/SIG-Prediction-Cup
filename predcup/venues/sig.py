@@ -494,10 +494,15 @@ class SigVenue(Venue):
                     raise ValueError(f"fill {fid} has fractional quantity {qty}")
                 if qty == 0:
                     continue
+                # Seen live 2026-10-01: a NO fill reports the NO price (bought
+                # 1,000 NO at 0.92 -> "price": 0.92, "side": "no"). Internally
+                # prices are YES-normalized, so a NO-side price becomes 1 - price.
+                raw_price = float(f["price"]) if f.get("price") is not None else None
+                yes_price = None if raw_price is None else (raw_price if f.get("side") == "yes" else 1 - raw_price)
                 new.append(Fill(
                     id=fid, order_id=str(f.get("orderId") or ""), exchange_id=str(f["exchangeId"]),
                     tournament_id=tid, side="yes" if qty > 0 else "no", action="buy",
-                    quantity=int(abs(qty)), price=float(f["price"]) if f.get("price") is not None else 0.0,
+                    quantity=int(abs(qty)), price=yes_price if yes_price is not None else 0.0,
                     filled_at=f["filledAt"],
                 ))  # fmt: skip
             if hit_known or not data["pagination"]["hasMore"]:

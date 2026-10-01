@@ -155,6 +155,8 @@ class App:
             venue=venue, store=store, risk=self.risk, router=self.router, control=self.control, alerter=alerter,
             tournament_id=tournament_id, market_meta=market_meta, shadow=shadow,
             max_read_failures=int(settings["risk"]["reconciliation_max_read_failures"]),
+            fair_value_of=self._fresh_fair_value,
+            max_sig_spread=float(settings["markouts"]["max_sig_spread"]),
         )  # fmt: skip
         self.looplag = LoopLagMonitor(load_loop_lag_config(settings), store, alerter, clock=mono)
         self._quotes: dict[str, KalshiQuote] = {}
@@ -168,6 +170,16 @@ class App:
                                 "tournament_id": tournament_id})  # fmt: skip
 
     # --- hooks for the safety branch ------------------------------------------------
+
+    def _fresh_fair_value(self, exchange_id: str) -> float | None:
+        """Polarity-adjusted Kalshi fair value (SIG YES terms) for markouts,
+        only if fresh (fair_value.max_outside_data_age_seconds)."""
+        fv = self.fair_values.current(exchange_id)
+        if not fv.ok or fv.value is None or fv.as_of is None:
+            return None
+        if (self.clock() - fv.as_of).total_seconds() > self.fv_cfg.max_age_seconds:
+            return None
+        return fv.value
 
     def request_kill(self, reason: str) -> None:
         """Synchronous halt (e.g. from a signal handler); the halt watcher
