@@ -17,8 +17,15 @@ Kalshi: public API, no auth (docs/kalshi/openapi.yaml):
 Governors match GOVPARTY<ST> series by party keyword; state Senate races
 match SENATE<ST>-26 events by event title (predcup.market_map, Kalshi
 Senate section).
-Polymarket: public Gamma API, no auth (CLAUDE.md architecture doc):
+Polymarket: public Gamma API, no auth (docs/polymarket/gamma-openapi.yaml):
   https://gamma-api.polymarket.com/public-search?q=...
+Each race's winner event is searched for and the party market picked by
+an exact question pattern (predcup.market_map, Polymarket section).
+
+    python -m scripts.draft_market_map --polymarket-only
+
+refills only poly_token_id (every row, verified ones included: a verified
+row changes in that column only) and prints the verified rows for review.
 
 Both are read-only market data reads (CLAUDE.md Hard Rule 5).
 """
@@ -38,10 +45,13 @@ import httpx
 from predcup.cup_markets import STATE_ABBREVIATIONS
 from predcup.market_map import (
     ExternalMarket,
+    apply_poly_column,
     build_row,
     index_senate_events,
     match_party,
+    match_poly_party,
     match_senate_party,
+    poly_search_query,
     prefer_2026_event_markets,
 )
 
@@ -194,70 +204,38 @@ def kalshi_match_for_race(
 
 
 def polymarket_search(client: httpx.Client, query: str) -> list[dict]:
+    """Gamma GET /public-search (docs/polymarket/gamma-openapi.yaml); events
+    come with their markets nested. 350 req / 10 s per IP
+    (docs/polymarket/rate_limits.md); we pace far below that."""
     resp = _get_with_retry(
-        client, f"{POLY_BASE}/public-search", params={"q": query, "limit_per_type": 5}
+        client, f"{POLY_BASE}/public-search", params={"q": query, "limit_per_type": 10}
     )
     time.sleep(REQUEST_DELAY_SECONDS)
-    return resp.json().get("events", [])
+    return resp.json().get("events") or []
 
 
-def _query_for_race(office: str, state: str, district: str) -> str:
-    if state == "US":
-        return f"{office} control 2026"
-    state_name = ABBR_TO_STATE.get(state, state)
-    if office == "House":
-        return f"{state_name} {district} House 2026"
-    return f"{state_name} {office} 2026"
-
-
-_NOT_GENERAL_ELECTION = ("primary", "nominee", "runoff", "caucus")
-
-
-def poly_match_for_race(
-    client: httpx.Client, office: str, state: str, district: str
-) -> tuple[list[ExternalMarket], float, str]:
-    query = _query_for_race(office, state, district)
-    events = polymarket_search(client, query)
-    if not events:
-        return [], 0.0, f"no Polymarket event found for query {query!r}"
-
-    state_name = ABBR_TO_STATE.get(state, "United States" if state == "US" else state)
-    best = None
-    for ev in events:
-        title = ev.get("title", "")
-        title_lower = title.lower()
-        # We want the general-election party-outcome market, not an
-        # intra-party primary/nominee contest -- both mention the state,
-        # office and often "Republican"/"Democrat" too, so this must be
-        # filtered explicitly rather than relying on keyword presence.
-        if any(kw in title_lower for kw in _NOT_GENERAL_ELECTION):
+def poly_results(
+    client: httpx.Client, markets: list[dict[str, str]], wanted: set[str]
+) -> dict[str, tuple[ExternalMarket | None, str]]:
+    """platform_id -> (YES-token match or None, note) for the Cup markets in
+    `wanted`, one search per race (predcup.market_map, Polymarket section)."""
+    cache: dict[str, list[dict]] = {}
+    out: dict[str, tuple[ExternalMarket | None, str]] = {}
+    for m in markets:
+        if m["id"] not in wanted:
             continue
-        if state == "US":
-            if office.lower() in title_lower:
-                best = ev
-                break
-        elif state_name.lower() in title_lower and office.lower() in title_lower:
-            best = ev
-            break
-    if best is None:
-        return [], 0.2, f"Polymarket search {query!r} returned no confident title match"
+        office, state, district = m["office"], m["state"], m["district"]
+        query = poly_search_query(office, state, district)
+        if query not in cache:
+            cache[query] = polymarket_search(client, query)
+        out[m["id"]] = match_poly_party(cache[query], office, state, district, m["party"])
+    return out
 
-    sub_markets = best.get("markets", [])
-    externals = []
-    for m in sub_markets:
-        clob_ids_raw = m.get("clobTokenIds")
-        if not clob_ids_raw:
-            continue
-        yes_token = clob_ids_raw[0] if isinstance(clob_ids_raw, list) else None
-        if yes_token is None:
-            import json as _json
 
-            try:
-                yes_token = _json.loads(clob_ids_raw)[0]
-            except (ValueError, IndexError, TypeError):
-                continue
-        externals.append(ExternalMarket(ref=yes_token, text=m.get("question", "")))
-    return externals, 0.7, f"Polymarket event {best.get('slug', '')}"
+def _poly_confidence(hit: ExternalMarket | None, party: str) -> float:
+    if hit is None:
+        return 0.0
+    return 0.6 if party == "I" else 0.9
 
 
 # --- Orchestration --------------------------------------------------------
@@ -268,11 +246,43 @@ def load_markets(csv_path: str) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
+FIELDNAMES = [
+    "platform_id", "kalshi_ticker", "poly_token_id", "polarity",
+    "rule_diff_notes", "confidence", "verified", "tier", "fusion_risk",
+]  # fmt: skip
+
+
+def write_map(path: str, rows: list[dict[str, str]]) -> None:
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def polymarket_only(markets: list[dict[str, str]], output: str) -> int:
+    """Refill poly_token_id on every existing row; nothing else changes on
+    a verified row. Prints the verified rows for human review."""
+    rows = load_markets(output)
+    cup_ids = {m["id"] for m in markets}
+    with httpx.Client(timeout=15) as client:
+        results = poly_results(client, markets, {r["platform_id"] for r in rows} & cup_ids)
+    new_rows, review = apply_poly_column(rows, results)
+    write_map(output, new_rows)
+    matched = sum(1 for r in new_rows if r["poly_token_id"])
+    print(f"Polymarket: {matched}/{len(new_rows)} rows matched; wrote {output}. Nothing newly marked verified.")
+    print("\nVerified rows (poly_token_id is the only column changed) - please review:")
+    for r in review:
+        print(f"  {r['platform_id']} {r['kalshi_ticker']}: {r['old_poly_token_id'] or '-'} -> "
+              f"{r['new_poly_token_id'] or '-'}  {r['new_question'] or r['note']}")  # fmt: skip
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--markets", default="data/cup_markets.csv")
     parser.add_argument("--output", default="config/market_map.csv")
     parser.add_argument("--offices", nargs="*", help="redraft only these offices (e.g. Senate)")
+    parser.add_argument("--polymarket-only", action="store_true", help="refill poly_token_id only, every row")
     args = parser.parse_args()
 
     markets = load_markets(args.markets)
@@ -280,6 +290,9 @@ def main() -> int:
         existing = {r["platform_id"]: r for r in load_markets(args.output)}
     except FileNotFoundError:
         existing = {}
+
+    if args.polymarket_only:
+        return polymarket_only(markets, args.output)
 
     def keep_existing(m: dict[str, str]) -> bool:
         old = existing.get(m["id"])
@@ -302,7 +315,7 @@ def main() -> int:
         # Cache per-race external market lookups so each race's several
         # SIG markets (R/D/I) share one Kalshi + one Polymarket call.
         kalshi_cache: dict[str, tuple[list[ExternalMarket], float, str]] = {}
-        poly_cache: dict[str, tuple[list[ExternalMarket], float, str]] = {}
+        poly = poly_results(client, markets, {m["id"] for m in markets if not keep_existing(m)})
 
         rows: list[dict[str, str]] = []
         for i, m in enumerate(markets):
@@ -312,10 +325,7 @@ def main() -> int:
             race_key = m["race_key"]
             office, state, district, party = m["office"], m["state"], m["district"], m["party"]
 
-            if race_key not in poly_cache:
-                poly_cache[race_key] = poly_match_for_race(client, office, state, district)
-            poly_markets, poly_conf, poly_note = poly_cache[race_key]
-            poly_hit = match_party(poly_markets, party)
+            poly_hit, poly_note = poly[m["id"]]
 
             if office == "Senate" and state != "US":
                 kalshi_ref, kalshi_conf, kalshi_note = kalshi_senate_match(senate_index, state, party)
@@ -336,8 +346,8 @@ def main() -> int:
                 kalshi_confidence=kalshi_conf,
                 kalshi_note=kalshi_note,
                 poly_ref=poly_hit.ref if poly_hit else None,
-                poly_confidence=poly_conf if poly_hit else 0.0,
-                poly_note="" if poly_hit else poly_note,
+                poly_confidence=_poly_confidence(poly_hit, party),
+                poly_note=poly_note,
             )
             rows.append(
                 {
@@ -355,14 +365,7 @@ def main() -> int:
             if (i + 1) % 20 == 0:
                 print(f"  matched {i + 1}/{len(markets)} markets", file=sys.stderr)
 
-    fieldnames = [
-        "platform_id", "kalshi_ticker", "poly_token_id", "polarity",
-        "rule_diff_notes", "confidence", "verified", "tier", "fusion_risk",
-    ]  # fmt: skip
-    with open(args.output, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
+    write_map(args.output, rows)
 
     kept = sum(1 for m in markets if keep_existing(m))
     print(f"Wrote {len(rows)} rows to {args.output} ({kept} copied unchanged). Nothing newly marked verified.")

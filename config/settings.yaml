@@ -73,6 +73,19 @@ fair_value:
     thin_volume: 1000 # lifetime contracts; below this adds thin_penalty
     thin_penalty: 0.01
     stale_penalty: 0.01 # added linearly with quote age, up to this at max_outside_data_age_seconds
+  # Optional Kalshi + Polymarket blend (predcup/fairvalue.py `fair_value`).
+  # Off: fair values are byte-identical to Kalshi-only
+  # (tests/test_fairvalue_polymarket_off.py). Before turning on, review
+  # poly_token_id on verified rows (the human check covered Kalshi only).
+  use_polymarket: false
+  polymarket:
+    max_spread: 0.10 # wider Polymarket spread -> Kalshi-only
+    base_uncertainty: 0.005
+    thin_depth: 500 # shares at best bid + best ask; below adds thin_penalty
+    thin_penalty: 0.01
+    stale_penalty: 0.01 # linear with book age, up to this at max_outside_data_age_seconds
+    disagreement_factor: 0.5 # uncertainty += this * |Kalshi - Polymarket|
+    max_disagreement: 0.08 # larger gap -> no fair value (looks like a mapping error)
 
 # Phase 1 risk defaults (CLAUDE.md "Risk (Phase 1 defaults, in config)").
 # Phase 2 loosens these only via an explicit config change, never in code.
