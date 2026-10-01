@@ -137,6 +137,8 @@ class App:
         self.risk = RiskManager(
             limits=load_risk_limits(settings), bankroll=bankroll, event_store=store, venue=venue,
             tournament_id=tournament_id, alerter=alerter, size_ramp=self.ramp, fusion_race_keys=fusion_race_keys,
+            require_daily_pnl=not shadow,  # live: no fresh daily P&L -> no new orders (fail closed)
+            daily_pnl_max_age_seconds=float(settings["risk"]["daily_pnl_max_age_seconds"]),
         )  # fmt: skip
         self.router = OrderRouter(venue=venue, risk=self.risk, store=store, tournament_id=tournament_id,
                                   shadow=shadow, alerter=alerter, control=self.control)  # fmt: skip

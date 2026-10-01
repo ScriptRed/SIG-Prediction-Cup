@@ -23,6 +23,7 @@ SETTINGS = {
         "max_party_exposure_fraction": 0.25, "max_order_size_susqies": 500,
         "max_price_deviation_from_fair_value": 0.03, "daily_loss_stop_fraction": 0.08,
         "stale_data_stop_seconds": 60, "reconciliation_interval_seconds": 60, "reconciliation_max_read_failures": 3,
+        "daily_pnl_max_age_seconds": 180,
         "size_ramp": {"launch_fraction": 0.1, "step_multiplier": 2.0, "clean_reconciliations_per_step": 45,
                       "rate_limit_max_in_window": 5, "rate_limit_window_seconds": 600},
     },
@@ -186,6 +187,7 @@ def test_run_for_a_short_while_records_loop_lag(tmp_path):
 def test_live_fill_flows_through_reconciliation_into_risk(tmp_path):
     venue = BookVenue()
     app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+    run(app.reconcile_once())  # live mode needs a fresh daily P&L before any order (fail closed)
     run(app.poll_kalshi_once())
     run(app.quote_once())
     [bid, ask] = sorted(run(venue.get_open_orders(TID)), key=lambda o: o.action)

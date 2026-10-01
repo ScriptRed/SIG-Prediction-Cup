@@ -402,6 +402,8 @@ class RiskManager:
         fusion_race_keys: frozenset[str] | None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         now: Callable[[], datetime] = _utc_now,
+        require_daily_pnl: bool = False,
+        daily_pnl_max_age_seconds: float = 180.0,
     ) -> None:
         if not tournament_id:
             raise ValueError("tournament_id is required and cannot be blank")
@@ -423,6 +425,11 @@ class RiskManager:
         self._sleep = sleep
         self._now = now
         self._daily_realized_pnl = 0.0
+        # Fail closed (live): no known, fresh daily P&L -> no new orders, since
+        # the daily loss stop can't be checked. Shadow passes False.
+        self.require_daily_pnl = require_daily_pnl
+        self._daily_pnl_max_age = daily_pnl_max_age_seconds
+        self._daily_pnl_at: datetime | None = None
         self._orders: dict[str, Order] = {}
         self._halted_markets: set[str] = set()
         self._size_ramp = size_ramp
@@ -455,8 +462,22 @@ class RiskManager:
     def update_bankroll(self, bankroll: float) -> None:
         self._bankroll = bankroll
 
-    def update_daily_pnl(self, pnl: float) -> None:
+    def update_daily_pnl(self, pnl: float | None) -> None:
+        """Today's Cup P&L from reconciliation; None = unavailable (read failed
+        or null and not derivable), which blocks orders when required."""
+        if pnl is None:
+            self._daily_pnl_at = None
+            return
         self._daily_realized_pnl = pnl
+        self._daily_pnl_at = self._now()
+
+    def _daily_pnl_problem(self) -> str:
+        if self._daily_pnl_at is None:
+            return "daily P&L unavailable: the daily loss stop can't be checked"
+        age = (self._now() - self._daily_pnl_at).total_seconds()
+        if age > self._daily_pnl_max_age:
+            return f"daily P&L unavailable: stale ({age:.0f}s old), the daily loss stop can't be checked"
+        return ""
 
     def record_order(self, order: Order) -> None:
         """Track a placed order so its exposure counts until confirmed
@@ -585,6 +606,9 @@ class RiskManager:
 
         if outside_data_age_seconds > limits.stale_data_stop_seconds:
             return RiskDecision(False, "stale outside data")
+
+        if self.require_daily_pnl and (problem := self._daily_pnl_problem()):
+            return RiskDecision(False, problem)
 
         if self._bankroll > 0 and (self._daily_realized_pnl / self._bankroll) <= -limits.daily_loss_stop_fraction:
             return RiskDecision(False, "daily loss stop triggered")

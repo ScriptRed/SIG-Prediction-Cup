@@ -73,6 +73,7 @@ class Reconciler:
         self._failures = 0
         self._clock = clock or (lambda: datetime.now(timezone.utc))  # same clock as RiskManager
         self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
+        self._pnl_missing = False
 
     def price_lookup(self, exchange_id: str) -> Callable[[int], Awaitable[float | None]]:
         """Markout price: the SIG mid for that exchange, None unless two-sided."""
@@ -161,11 +162,28 @@ class Reconciler:
             pnl = await get_pnl(self._tid, period="day")
         except Exception as e:
             self._store.log("pnl_read_failed", {"error": repr(e)[:300]})
+            self._pnl_unavailable(f"read failed: {e!r}"[:200])
             return
         self._risk.update_bankroll(pnl.total_account_value)
-        if pnl.period_pnl is not None:
-            self._risk.update_daily_pnl(pnl.period_pnl)
-        self._store.log("pnl", {"day_pnl": pnl.period_pnl, "account_value": pnl.total_account_value})
+        self._store.log("pnl", {"day_pnl": pnl.period_pnl, "account_value": pnl.total_account_value,
+                                "derived": getattr(pnl, "derived", False)})  # fmt: skip
+        if pnl.period_pnl is None:
+            self._pnl_unavailable("periodPnl null and not derivable")
+            return
+        self._risk.update_daily_pnl(pnl.period_pnl)
+        if self._pnl_missing:
+            self._pnl_missing = False
+            self._alerter.send(f"Daily P&L available again ({pnl.period_pnl:+,.2f}); daily loss stop active.")
+
+    def _pnl_unavailable(self, detail: str) -> None:
+        """Mark the daily P&L unknown in risk (live: orders refused) and alert
+        once per outage, not on every reconciliation."""
+        self._risk.update_daily_pnl(None)
+        self._store.log("pnl_unavailable", {"detail": detail})
+        if not self._pnl_missing:
+            self._pnl_missing = True
+            effect = "logged only (shadow)" if self._shadow else "new orders refused until it is back"
+            self._alerter.send(f"Daily P&L unavailable ({detail}): daily loss stop can't be checked; {effect}.")
 
     def _read_failed(self, detail: str) -> ReconResult:
         self._failures += 1

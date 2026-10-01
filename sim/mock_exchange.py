@@ -157,3 +157,11 @@ class MockExchange(Venue):
 
     async def get_new_fills(self, tournament_id: str, known_ids: set[str]) -> list[Fill]:
         return [f for f in self._fills.get(tournament_id, []) if f.id not in known_ids]
+
+    async def get_pnl(self, tournament_id: str, period: str):
+        """The mock doesn't value positions: report a flat day (0 P&L) so
+        live-mode runs have a daily P&L, as the real adapter provides."""
+        from predcup.venues.sig import TournamentPnl
+
+        balance = self._balances.get(tournament_id, self._starting_balance)
+        return TournamentPnl(period=period, period_pnl=0.0, unrealized_pnl=0.0, total_account_value=balance, roi=None)
