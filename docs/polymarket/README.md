@@ -8,7 +8,7 @@ no auth, no orders.
 | File | Source |
 | - | - |
 | `gamma-openapi.yaml` | `/api-spec/gamma-openapi.yaml` — Gamma (markets, events, search). Source of truth for shapes. |
-| `clob-openapi.yaml` | `/api-spec/clob-openapi.yaml` — CLOB. We use only `GET /book`, `GET /books`. |
+| `clob-openapi.yaml` | `/api-spec/clob-openapi.yaml` — CLOB. We use only `GET /book` (documented `GET /books` answered 400 live on 2026-10-01). |
 | `rate_limits.md` | `/api-reference/rate-limits.md` — Cloudflare IP limits (throttled, not rejected). |
 | `market-data_*.md`, `concepts_*.md` | prose guides (outcome/token layout, prices, order books, neg risk) |
 | `api_reference_index.md`, `getting-started_api.md`, `changelog_predictions.md` | index, base URLs, changelog |
