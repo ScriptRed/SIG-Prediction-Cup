@@ -129,6 +129,10 @@ def handler(request: httpx.Request) -> httpx.Response:
                       "bestBid": bid, "bestAsk": ask, "spread": ask - bid},
             )  # fmt: skip
     if url.startswith(KALSHI):
+        if path.endswith("/markets") and "tickers" in request.url.params:  # batched read
+            wanted = request.url.params["tickers"].split(",")
+            return httpx.Response(200, json={"markets": [KALSHI_MARKETS[t] for t in wanted if t in KALSHI_MARKETS],
+                                             "cursor": ""})  # fmt: skip
         ticker = path.split("/")[-1]
         if "/markets/" in path and ticker in KALSHI_MARKETS:
             return httpx.Response(200, json={"market": KALSHI_MARKETS[ticker]})
@@ -413,3 +417,69 @@ def test_party_id_consensus_uses_only_other_verified_rows_of_that_party_and_pola
     assert party_id_consensus(rows, party_of, party="D", polarity="same", exclude_id="3") == {"D"}
     assert party_id_consensus(rows, party_of, party="R", polarity="same", exclude_id="4") == set()
     assert party_id_consensus(rows, party_of, party="D", polarity="inverted", exclude_id="1") == {"R"}
+
+
+# --- --summary: Kalshi custom_strike political_party ID (2026-10-01) ------------------
+#
+# The suffix check (-D / -R) reads the ticker; the political_party UUID in
+# the Kalshi market's custom_strike is what its rules resolve on. A row can
+# pass the suffix check and still point at the other party's UUID.
+
+from predcup.mapping_review import kalshi_political_party, political_party_consensus  # noqa: E402
+from predcup.venues.kalshi import parse_market as _parse  # noqa: E402
+
+DEM, REP = "57fa2293-3102-463b-9087-68cd9f6da0a6", "9244ed4c-9dfd-45cc-8211-996dc902f315"
+
+
+def test_kalshi_political_party_reads_custom_strike():
+    m = _parse({**kalshi_market("X-26-D", "X-26", "t", "Jane", "0.40", "0.42"),
+                "custom_strike": {"political_party": DEM, "politician": "p"}})  # fmt: skip
+    assert kalshi_political_party(m) == DEM
+    assert kalshi_political_party(_parse(kalshi_market("X-26-I", "X-26", "t", "Ind", "0.1", "0.12"))) is None
+    assert kalshi_political_party(None) is None
+
+
+def test_political_party_consensus_uses_other_verified_rows_of_that_party():
+    rows = [
+        {"platform_id": "1", "kalshi_ticker": "A-26-D", "polarity": "same", "verified": "true"},
+        {"platform_id": "2", "kalshi_ticker": "B-26-D", "polarity": "same", "verified": "true"},
+        {"platform_id": "3", "kalshi_ticker": "C-26-D", "polarity": "same", "verified": "false"},
+        {"platform_id": "4", "kalshi_ticker": "D-26-R", "polarity": "same", "verified": "true"},
+    ]
+    party_of = {"1": "D", "2": "D", "3": "D", "4": "R"}
+    uuid_of = {"A-26-D": DEM, "B-26-D": DEM, "C-26-D": REP, "D-26-R": REP}
+    assert political_party_consensus(rows, party_of, uuid_of, party="D", polarity="same", exclude_id="3") == {DEM}
+    assert political_party_consensus(rows, party_of, uuid_of, party="R", polarity="same", exclude_id="4") == set()
+
+
+@pytest.fixture
+def party_files(summary_files, monkeypatch):
+    # AZ D/R and CO R verified with the real Kalshi UUIDs; DE D (932) is
+    # unverified, its ticker ends in -D (suffix check passes) but its
+    # custom_strike carries the Republican UUID.
+    summary_files["markets"].write_text(SUMMARY_CUP_CSV
+        + "932,1932,Will the Democratic Party win the Delaware Senate?,Election Outcome,DE,Senate,,D,DE-Senate\n")  # fmt: skip
+    summary_files["map"].write_text(SUMMARY_MAP_CSV + "932,SENATEDE-26-D,,same,,0.9,false,\n")
+    monkeypatch.setitem(SIG_PRICES, "1932", (0.60, 0.64))
+    for ticker, uuid in (("SENATEAZ-26-D", DEM), ("SENATEAZ-26-R", REP), ("SENATECO-26-R", REP)):
+        monkeypatch.setitem(KALSHI_MARKETS, ticker, {**KALSHI_MARKETS[ticker], "custom_strike": {"political_party": uuid}})
+    monkeypatch.setitem(KALSHI_MARKETS, "SENATEDE-26-D", {
+        **kalshi_market("SENATEDE-26-D", "SENATEDE-26", "Will Democratics win the Senate race in Delaware?",
+                        "Democratic party", "0.6100", "0.6300"),
+        "custom_strike": {"political_party": REP}})  # fmt: skip
+    monkeypatch.setitem(EVENT_TITLES, "SENATEDE-26", "Delaware Senate winner?")
+    return summary_files
+
+
+def test_summary_political_party_ok_against_other_verified_rows(party_files):
+    _, text = run(party_files, ["--summary", "AZ-Senate", "CO-Senate"])
+    assert f"{REP[:8]} ok" in _summary_line(text, "902")  # 912 also uses REP for R
+    assert f"{DEM[:8]} -" in _summary_line(text, "901")  # no other verified D row
+
+
+def test_summary_flags_political_party_mismatch_the_suffix_check_misses(party_files):
+    _, text = run(party_files, ["--summary", "DE-Senate"])
+    line = _summary_line(text, "932")
+    assert " D      ok " in line  # suffix check passes
+    assert f"{REP[:8]} MISMATCH({DEM[:8]})" in line
+    assert f"Kalshi political_party {REP[:8]}, other verified D rows use {DEM[:8]}" in line

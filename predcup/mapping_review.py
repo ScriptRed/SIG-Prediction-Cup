@@ -240,6 +240,41 @@ def party_id_check(kid: str | None, consensus: set[str]) -> str:
     return "ok" if kid == expected else f"MISMATCH({expected})"
 
 
+def kalshi_political_party(market: KalshiMarket | None) -> str | None:
+    """The political_party ID in a Kalshi market's custom_strike: what its
+    rules resolve on ("a representative of <party>"). None for candidate
+    contracts (independents) or when absent."""
+    if market is None or not market.custom_strike:
+        return None
+    value = market.custom_strike.get("political_party")
+    return str(value) if value else None
+
+
+def political_party_consensus(
+    map_rows: list[dict[str, str]],
+    party_of: dict[str, str],
+    uuid_of_ticker: dict[str, str | None],
+    *,
+    party: str,
+    polarity: str,
+    exclude_id: str,
+) -> set[str]:
+    """political_party IDs used by every *other* verified row whose SIG
+    market is `party` with the same polarity (the same rule as
+    party_id_consensus, on the custom_strike ID instead of the suffix)."""
+    out: set[str] = set()
+    for r in map_rows:
+        pid = r.get("platform_id", "")
+        if pid == exclude_id or not _is_true(r.get("verified")):
+            continue
+        if party_of.get(pid) != party or r.get("polarity", "") != polarity:
+            continue
+        uuid = uuid_of_ticker.get(r.get("kalshi_ticker", ""))
+        if uuid:
+            out.add(uuid)
+    return out
+
+
 # --- Marking verified -------------------------------------------------------
 
 

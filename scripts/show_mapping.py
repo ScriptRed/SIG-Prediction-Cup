@@ -46,9 +46,11 @@ from predcup.mapping_review import (
     ReviewThresholds,
     kalshi_mid_in_sig_terms,
     kalshi_party_id,
+    kalshi_political_party,
     mark_verified,
     party_id_check,
     party_id_consensus,
+    political_party_consensus,
     polarity_statement,
     race_summary,
     races_in_order,
@@ -262,11 +264,21 @@ async def build_reports(
 def summary_header() -> str:
     return (
         f"{'id':<5} {'race':<16} {'pty':<3} {'kalshi ticker':<20} {'candidate':<22} {'k-id':<6} "
-        f"{'k-id check':<12} SIG bid/ask, Kalshi bid/ask, gap (SIG - Kalshi mid, points), warnings"
+        f"{'k-id check':<12} {'k-party':<8} {'k-party check':<18} "
+        "SIG bid/ask, Kalshi bid/ask, gap (SIG - Kalshi mid, points), warnings"
     )
 
 
-def summary_line(r: MarketReport, map_rows: list[dict[str, str]], party_of: dict[str, str]) -> str:
+def _short(uuid: str | None) -> str:
+    return uuid[:8] if uuid else "-"
+
+
+def summary_line(
+    r: MarketReport,
+    map_rows: list[dict[str, str]],
+    party_of: dict[str, str],
+    uuid_of_ticker: dict[str, str | None] | None = None,
+) -> str:
     c, m = r.cup_row, r.map_row or {}
     ticker = m.get("kalshi_ticker", "")
     polarity = m.get("polarity", "")
@@ -278,6 +290,18 @@ def summary_line(r: MarketReport, map_rows: list[dict[str, str]], party_of: dict
         others = "/".join(sorted(consensus))
         warnings.insert(0, f"Kalshi party ID {kid}, other verified {c['party']} rows use {others}")
 
+    # The custom_strike political_party ID (what Kalshi's rules resolve on),
+    # checked the same way against every other verified row of this party.
+    uuid_of_ticker = uuid_of_ticker or {}
+    uuid = kalshi_political_party(r.kalshi)
+    uuid_consensus = political_party_consensus(map_rows, party_of, uuid_of_ticker, party=c["party"],
+                                               polarity=polarity, exclude_id=c["id"])  # fmt: skip
+    short_consensus = {_short(u) for u in uuid_consensus}
+    uuid_check = party_id_check(_short(uuid) if uuid else None, short_consensus)
+    if uuid_check.startswith(("MISMATCH", "mixed")):
+        warnings.insert(0, f"Kalshi political_party {_short(uuid)}, other verified {c['party']} rows use "
+                           f"{'/'.join(sorted(short_consensus))}")  # fmt: skip
+
     sp = r.sig_price or {}
     s_bid, s_ask = sp.get("bestBid"), sp.get("bestAsk")
     k = r.kalshi
@@ -288,7 +312,7 @@ def summary_line(r: MarketReport, map_rows: list[dict[str, str]], party_of: dict
     candidate = (k.yes_sub_title if k else "")[:22] or "-"
     return (
         f"{c['id']:<5} {c['race_key']:<16} {c['party']:<3} {ticker or '-':<20} {candidate:<22} {kid or '-':<6} "
-        f"{check:<12} SIG {_fmt(s_bid)}/{_fmt(s_ask)}  K {_fmt(k.yes_bid if k else None)}/"
+        f"{check:<12} {_short(uuid):<8} {uuid_check:<18} SIG {_fmt(s_bid)}/{_fmt(s_ask)}  K {_fmt(k.yes_bid if k else None)}/"
         f"{_fmt(k.yes_ask if k else None)}  gap {gap:<5}  {'; '.join(warnings) or '-'}"
     )
 
@@ -370,11 +394,24 @@ def main(
         out("SIG_API_KEY not set (check .env)")
         return 1
 
+    uuid_of_ticker: dict[str, str | None] = {}
+
     async def run() -> list[MarketReport]:
         async with httpx.AsyncClient(timeout=15, transport=transport) as client:
             sig = SigReadOnly(client, settings["platform"]["base_url"], api_key)
             kalshi = KalshiReadOnly(client, kcfg["base_url"], kcfg["request_delay_seconds"])
-            return await build_reports(cup_rows, map_by_id, sig, kalshi, slug, th)
+            reports = await build_reports(cup_rows, map_by_id, sig, kalshi, slug, th)
+            if args.summary:
+                # Every verified row's political_party ID, for the consensus
+                # column: one batched GET /markets?tickers= read.
+                verified = sorted({r["kalshi_ticker"] for r in map_rows
+                                   if r.get("verified", "").lower() == "true" and r.get("kalshi_ticker")})  # fmt: skip
+                for ticker, m in (await kalshi.get_markets(verified)).items():
+                    uuid_of_ticker[ticker] = kalshi_political_party(m)
+                for r in reports:
+                    if r.kalshi is not None:
+                        uuid_of_ticker[r.kalshi.ticker] = kalshi_political_party(r.kalshi)
+            return reports
 
     try:
         reports = asyncio.run(run())
@@ -389,7 +426,7 @@ def main(
         party_of = {c["id"]: c["party"] for c in cup_markets}
         out(summary_header())
         for r in reports:
-            out(summary_line(r, map_rows, party_of))
+            out(summary_line(r, map_rows, party_of, uuid_of_ticker))
         return 0
 
     out(f"Race {key}: {len(cup_rows)} SIG market(s)")
