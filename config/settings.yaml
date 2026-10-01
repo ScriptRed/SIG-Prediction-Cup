@@ -185,6 +185,7 @@ seed_lag:
     max_lag_samples: 20 # lagged-correlation estimate, in samples
 
 alerts:
+  loop_error_cooldown_seconds: 600 # per loop: first error alerts at once, then at most one alert per 10 min (all logged)
   gap_threshold: 0.03 # fair value vs platform price gap that triggers an alert
   yes_no_arb_threshold: 0.01 # YES+NO sum deviation from 1 that triggers an alert
   pair_inconsistency_threshold: 0.03 # cross-market consistency violation threshold

@@ -36,6 +36,7 @@ SETTINGS = {
                "max_position_shares": 200, "post_only": True, "pull_quotes_before_events": []},
     "venues": {"kalshi": {"poll_interval_seconds": 0.05}},
     "daily_summary": {"time": "08:00", "timezone": "Europe/London", "max_alerts_listed": 10},
+    "alerts": {"loop_error_cooldown_seconds": 600},
     "kill_switch": {"file_path": "KILL", "poll_interval_seconds": 1.0, "wait_for_inflight_seconds": 5,
                     "retry_max_seconds": 30},
 }  # fmt: skip
@@ -193,3 +194,44 @@ def test_live_fill_flows_through_reconciliation_into_risk(tmp_path):
     assert store.local_positions(TID) == {"1068": 20}
     assert store.all_events("reconciliation")[-1]["payload"]["status"] == "clean"
     assert app.risk._positions[0].quantity == 20 and app.risk._positions[0].race_key == "MA-Senate"
+
+
+# --- 2026-10-01 launch: loop-error alerts are rate-limited per loop ------------------
+
+
+def test_repeated_loop_errors_alert_once_then_summarize(tmp_path):
+    t = {"mono": 0.0}
+    app, store = make_app(tmp_path)
+    app.mono = lambda: t["mono"]
+    calls = {"n": 0}
+
+    async def failing_step():
+        calls["n"] += 1
+        raise TimeoutError("SIG slow at the open")
+
+    async def go():
+        task = asyncio.create_task(app._periodic("quoter", 0.0, failing_step))
+        for _ in range(50):  # 50 failures inside one cooldown
+            await asyncio.sleep(0)
+            t["mono"] += 1.0
+        task.cancel()
+
+    run(go())
+    alerts = [m for m in app.alerter.messages if "quoter loop error" in m]
+    assert len(store.all_events("loop_error")) == calls["n"] >= 40  # every error still logged
+    assert len(alerts) == 1
+
+
+def test_loop_error_alert_after_cooldown_reports_suppressed_count(tmp_path):
+    app, store = make_app(tmp_path)
+    t = {"mono": 0.0}
+    app.mono = lambda: t["mono"]
+    for i in range(5):
+        app._report_loop_error("quoter", TimeoutError("slow"))
+        t["mono"] += 10
+    t["mono"] = 700.0
+    app._report_loop_error("quoter", TimeoutError("slow"))
+    alerts = [m for m in app.alerter.messages if "quoter loop error" in m]
+    assert len(alerts) == 2 and "4 more since the last alert" in alerts[1]
+    app._report_loop_error("kalshi_poll", TimeoutError("slow"))  # other loops have their own budget
+    assert sum("kalshi_poll loop error" in m for m in app.alerter.messages) == 1

@@ -160,6 +160,8 @@ class App:
         self._kill_result: KillSwitchResult | None = None
         self._extra_tasks: list[Callable[[], Awaitable[None]]] = []
         self.watchdog = None  # set_watchdog(): systemd only
+        self._loop_error_alerted_at: dict[str, float] = {}
+        self._loop_errors_suppressed: dict[str, int] = {}
         store.log("app_start", {"shadow": shadow, "targets": [t.target.exchange_id for t in targets],
                                 "tournament_id": tournament_id})  # fmt: skip
 
@@ -271,10 +273,24 @@ class App:
             try:
                 await step()
             except Exception as e:  # a loop must never die silently
-                self.store.log("loop_error", {"loop": name, "error": repr(e)[:500]})
-                self.alerter.send(f"{name} loop error: {e!r}"[:300])
+                self._report_loop_error(name, e)
             scheduled += interval
             await asyncio.sleep(max(0.0, scheduled - self.mono()))
+
+    def _report_loop_error(self, loop: str, error: Exception) -> None:
+        """Every error is logged; alerts are rate-limited per loop (first one
+        at once, then at most one per alerts.loop_error_cooldown_seconds,
+        saying how many were suppressed), so a slow venue can't flood Telegram."""
+        self.store.log("loop_error", {"loop": loop, "error": repr(error)[:500]})
+        now = self.mono()
+        last = self._loop_error_alerted_at.get(loop)
+        if last is not None and now - last < float(self.settings["alerts"]["loop_error_cooldown_seconds"]):
+            self._loop_errors_suppressed[loop] = self._loop_errors_suppressed.get(loop, 0) + 1
+            return
+        suppressed = self._loop_errors_suppressed.pop(loop, 0)
+        self._loop_error_alerted_at[loop] = now
+        extra = f" ({suppressed} more since the last alert)" if suppressed else ""
+        self.alerter.send(f"{loop} loop error: {error!r}{extra}"[:300])
 
     async def _halt_watcher(self) -> None:
         """An internal halt (reconciliation mismatch, whole-batch rejection)
