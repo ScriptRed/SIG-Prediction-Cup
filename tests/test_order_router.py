@@ -173,7 +173,7 @@ def test_swept_quotes_stay_counted_until_reconciliation_releases_them(tmp_path):
     run(router.requote(upd(order("c")), NOW))  # sweeps b after the snapshot
     router.release_swept(snapshot)
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
-    assert statuses == {"a": OrderStatus.CANCELLED, "b": OrderStatus.OPEN, "c": OrderStatus.OPEN}
+    assert statuses == {"b": OrderStatus.OPEN, "c": OrderStatus.OPEN}  # "a" released: cancelled, so forgotten
     assert router.swept_snapshot() == ["b"]
 
 
@@ -209,7 +209,7 @@ def test_item_4xx_halts_that_market_via_risk(tmp_path):
     run(router.requote(upd(order("a"), order("b", market_id="m2", exchange_id="e2")), NOW))
     assert risk.is_market_halted("m2") and not risk.is_market_halted("m1")
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
-    assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.REJECTED}
+    assert statuses == {"a": OrderStatus.OPEN}  # "b" rejected: never counts, forgotten
 
 
 class UnknownVenue(SpyVenue):
@@ -238,7 +238,7 @@ def test_whole_batch_rejection_halts_trading(tmp_path):
     router, _, _, alerts, control, risk = make(tmp_path, venue=ValidationVenue())
     run(router.requote(upd(order("a")), NOW))
     assert control.halted and "VALIDATION_ERROR" in control.reason
-    assert [o.status for o in risk._tracked_orders()] == [OrderStatus.REJECTED]
+    assert risk._tracked_orders() == []  # rejected: forgotten
 
 
 def test_halted_control_blocks_everything(tmp_path):
@@ -313,7 +313,7 @@ def test_5xx_item_stays_counted_and_suspends_quoting_until_reconciled(tmp_path):
     run(router.requote(upd(order("a"), order("b", exchange_id="e2", market_id="m2"),
                            order("c", exchange_id="e3", market_id="m3")), NOW))  # fmt: skip
     statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
-    assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.PENDING, "c": OrderStatus.REJECTED}
+    assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.PENDING}  # "c" (429) rejected: forgotten
     assert router.blocked and "unknown" in router.blocked.lower()
     assert not risk.is_market_halted("m2")  # not a 4xx rejection
 

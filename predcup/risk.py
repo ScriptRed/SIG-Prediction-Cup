@@ -463,8 +463,19 @@ class RiskManager:
         self._orders[key] = order
 
     def confirm_order_state(self, order_key: str, status: OrderStatus) -> None:
-        if order_key in self._orders:
-            self._orders[order_key] = self._orders[order_key].model_copy(update={"status": status})
+        if order_key not in self._orders:
+            return
+        if self._never_counts_again(status):
+            # Forget it: it adds nothing to any exposure sum, and keeping every
+            # order ever placed made each check() slower with uptime.
+            del self._orders[order_key]
+            return
+        self._orders[order_key] = self._orders[order_key].model_copy(update={"status": status})
+
+    def _never_counts_again(self, status: OrderStatus) -> bool:
+        """Cancelled/expired/rejected never count; filled stops counting once
+        positions are known (its exposure is in the positions then)."""
+        return not is_exposure_counted(status) or (status == OrderStatus.FILLED and self._positions_known)
 
     def _tracked_orders(self) -> list[Order]:
         return list(self._orders.values())
@@ -475,6 +486,8 @@ class RiskManager:
         exposure is in the positions."""
         self._positions = list(positions)
         self._positions_known = True
+        for key in [k for k, o in self._orders.items() if o.status == OrderStatus.FILLED]:
+            del self._orders[key]
 
     def _exposure_orders(self) -> list[Order]:
         orders = self._tracked_orders()
