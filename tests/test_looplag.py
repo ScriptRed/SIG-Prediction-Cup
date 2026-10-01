@@ -94,11 +94,34 @@ def test_alerts_are_rate_limited_per_loop(monitor, alerter, clock):
     assert len(alerter.messages) == 2
 
 
-def test_cooldown_is_per_loop_name(monitor, alerter, clock):
+def test_cooldown_is_global_across_loops(monitor, alerter, clock):
+    # 2026-10-01: one cooldown for all loops, so a bad patch that slows every
+    # loop at once sends one alert, not one per loop.
     clock.t = 1002.0
     monitor.record("quoter", scheduled_at=1000.0)
     monitor.record("reconciliation", scheduled_at=1000.0)
+    monitor.record("event_loop", scheduled_at=1000.5)
+    assert len(alerter.messages) == 1
+
+
+def test_next_alert_summarizes_what_was_suppressed(monitor, alerter, clock):
+    clock.t = 1002.0
+    monitor.record("quoter", scheduled_at=1000.0)
+    for i in range(5):
+        clock.t = 1010.0 + i
+        monitor.record("reconciliation", scheduled_at=1010.0 + i - 1.5 - i * 0.1)
+    clock.t = 1070.0
+    monitor.record("quoter", scheduled_at=1068.8)
     assert len(alerter.messages) == 2
+    assert "5 more slow readings suppressed" in alerter.messages[1]
+    assert "worst 1.9s (reconciliation)" in alerter.messages[1]
+
+
+def test_at_most_one_alert_per_cooldown_however_many_slow_readings(monitor, alerter, clock):
+    for i in range(600):  # ten minutes of a slow reading every second
+        clock.t = 1000.0 + i
+        monitor.record(["quoter", "kalshi_poll", "reconciliation", "event_loop"][i % 4], scheduled_at=clock.t - 2)
+    assert len(alerter.messages) == 10  # 60 s cooldown
 
 
 def test_suppressed_alerts_are_still_logged(monitor, store, clock):

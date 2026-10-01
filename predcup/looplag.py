@@ -14,7 +14,8 @@ broken. Two sources feed it:
 
 Every measurement is logged to events_log as `loop_lag`. Lag above
 `alert_threshold_seconds` alerts, at most once per `alert_cooldown_seconds`
-per loop name so a stuck loop doesn't flood Telegram.
+across all loops (so a bad patch can't flood Telegram); the next alert
+says how many slow readings were suppressed and the worst one.
 """
 
 from __future__ import annotations
@@ -70,7 +71,12 @@ class LoopLagMonitor:
         self._event_store = event_store
         self._alerter = alerter
         self._clock = clock
-        self._last_alert_at: dict[str, float] = {}
+        # One cooldown across all loops (2026-10-01): a bad patch that slows
+        # every loop at once sends one alert, not one per loop. Slow readings
+        # inside the cooldown are counted and summarized in the next alert.
+        self._last_alert_at: float | None = None
+        self._suppressed = 0
+        self._worst_suppressed: tuple[float, str] | None = None
 
     def record(self, loop: str, scheduled_at: float) -> float:
         """Log how late `loop` started relative to `scheduled_at` (same
@@ -80,15 +86,25 @@ class LoopLagMonitor:
         over = lag > self._config.alert_threshold_seconds
         alerted = False
         if over:
-            last = self._last_alert_at.get(loop)
+            last = self._last_alert_at
             if last is None or now - last >= self._config.alert_cooldown_seconds:
-                self._last_alert_at[loop] = now
+                self._last_alert_at = now
                 alerted = True
-                self._alerter.send(
+                message = (
                     f"Loop lag: {loop} ran {lag:.1f}s late "
                     f"(threshold {self._config.alert_threshold_seconds:g}s). "
                     "Something is blocking the trading loop."
                 )
+                if self._suppressed:
+                    worst_lag, worst_loop = self._worst_suppressed  # type: ignore[misc]
+                    message += (f" {self._suppressed} more slow readings suppressed since the last alert,"
+                                f" worst {worst_lag:.1f}s ({worst_loop}).")  # fmt: skip
+                self._suppressed, self._worst_suppressed = 0, None
+                self._alerter.send(message)
+            else:
+                self._suppressed += 1
+                if self._worst_suppressed is None or lag > self._worst_suppressed[0]:
+                    self._worst_suppressed = (lag, loop)
         self._event_store.log(
             "loop_lag",
             {"loop": loop, "lag_seconds": round(lag, 4), "over_threshold": over, "alerted": alerted},

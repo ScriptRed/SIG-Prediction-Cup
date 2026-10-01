@@ -122,7 +122,7 @@ risk:
 # as loop_lag; lag above the threshold alerts (once per cooldown per loop).
 loop_lag:
   alert_threshold_seconds: 1.0
-  alert_cooldown_seconds: 60
+  alert_cooldown_seconds: 600 # one loop-lag alert per 10 min across all loops; every reading still logged
   probe_interval_seconds: 0.5
 
 quoter:
