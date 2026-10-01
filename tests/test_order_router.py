@@ -294,3 +294,24 @@ def test_placement_counter_and_idle_wait(tmp_path):
     run(router.requote(upd(order("a")), NOW))
     assert router.placement_count == before + 1
     assert run(router.wait_idle(0.1)) is True
+
+
+# --- audit 2026-10-01 M1: a 5xx batch item has an unknown outcome, not a rejection ------
+
+
+class UnknownItemVenue(SpyVenue):
+    async def place_batch(self, orders, batch_key):
+        self.batches.append(list(orders))
+        return [BatchItemResult(0, True, 201, orders[0].model_copy(update={"id": "1", "status": OrderStatus.OPEN})),
+                BatchItemResult(1, False, 502, orders[1], "ORDER_STATUS_UNKNOWN", "may have gone through"),
+                BatchItemResult(2, False, 429, orders[2], "RATE_LIMITED", "nothing placed")]  # fmt: skip
+
+
+def test_5xx_item_stays_counted_and_suspends_quoting_until_reconciled(tmp_path):
+    router, _, store, alerts, _, risk = make(tmp_path, venue=UnknownItemVenue())
+    run(router.requote(upd(order("a"), order("b", exchange_id="e2", market_id="m2"),
+                           order("c", exchange_id="e3", market_id="m3")), NOW))  # fmt: skip
+    statuses = {o.idempotency_key: o.status for o in risk._tracked_orders()}
+    assert statuses == {"a": OrderStatus.OPEN, "b": OrderStatus.PENDING, "c": OrderStatus.REJECTED}
+    assert router.blocked and "unknown" in router.blocked.lower()
+    assert not risk.is_market_halted("m2")  # not a 4xx rejection

@@ -203,6 +203,7 @@ class OrderRouter:
 
         # 3. Post in batches of <= 50, a fresh key per batch.
         placed = 0
+        unknown_items = 0
         for i in range(0, len(approved), MAX_BATCH):
             chunk = approved[i : i + MAX_BATCH]
             if self._halted():  # a kill landed while earlier chunks were in flight
@@ -248,11 +249,20 @@ class OrderRouter:
                     placed += 1
                     self._store.log("order", {**_order_payload(r.order, None), "order_id": r.order.id,
                                               "status": r.order.status.value})  # fmt: skip
+                elif r.status >= 500:
+                    # Outcome unknown (e.g. per-item ORDER_STATUS_UNKNOWN after the
+                    # adapter's retries): it may be live. Keep it PENDING (counted)
+                    # and stop quoting until reconciliation has seen the truth.
+                    self._store.log("order_status_unknown", {"key": key, "status": r.status, "code": r.code,
+                                                             "message": r.message})  # fmt: skip
+                    unknown_items += 1
                 else:
                     self._risk.confirm_order_state(key, OrderStatus.REJECTED)
                     self._store.log("order_failed", {"key": key, "status": r.status, "code": r.code, "message": r.message})
                     if 400 <= r.status < 500 and r.status != 429 and r.order.market_id:
                         self._risk.record_order_rejection(r.order.market_id, r.status, r.code, r.message)
+        if unknown_items:
+            self._block(f"{unknown_items} batch item(s) with unknown outcome (5xx)")
         return RouterResult(approved=len(approved), placed=placed, done=done, blocked=self._blocked)
 
 
