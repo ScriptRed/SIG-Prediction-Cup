@@ -3,6 +3,7 @@
     python -m scripts.show_mapping <race_key>                 # e.g. MA-Senate
     python -m scripts.show_mapping --list
     python -m scripts.show_mapping <race_key> --mark-verified
+    python -m scripts.show_mapping --summary <race_key> [<race_key> ...]
 
 For every SIG market in the race: the SIG side (title, ids, party, Cup
 best bid/ask, any rules text the API returns), the mapped Kalshi market
@@ -12,6 +13,13 @@ assumed stated in words, and warnings (primary or non-2026 contract, mids
 
 --mark-verified prints all of that, asks you to type `yes`, then sets
 verified=true and tier=A on that race's rows only.
+
+--summary prints one line per SIG market of the given races: race, party,
+Kalshi ticker, candidate (Kalshi YES label), Kalshi party ID (ticker
+suffix) and whether it matches the ID every other verified row uses for
+that SIG party and polarity (ok / MISMATCH(X) / mixed / - for nothing to
+compare), SIG bid/ask, Kalshi bid/ask, the polarity-adjusted mid gap in
+points (SIG - Kalshi) and the same warnings as the full report.
 
 Read-only against both venues: GET requests only, no orders, ever. SIG
 reads always pass the Cup's tournamentId (docs/platform/SUMMARY.md).
@@ -36,7 +44,11 @@ from dotenv import load_dotenv
 
 from predcup.mapping_review import (
     ReviewThresholds,
+    kalshi_mid_in_sig_terms,
+    kalshi_party_id,
     mark_verified,
+    party_id_check,
+    party_id_consensus,
     polarity_statement,
     race_summary,
     races_in_order,
@@ -244,6 +256,43 @@ async def build_reports(
     return reports
 
 
+# --- --summary ----------------------------------------------------------------
+
+
+def summary_header() -> str:
+    return (
+        f"{'id':<5} {'race':<16} {'pty':<3} {'kalshi ticker':<20} {'candidate':<22} {'k-id':<6} "
+        f"{'k-id check':<12} SIG bid/ask, Kalshi bid/ask, gap (SIG - Kalshi mid, points), warnings"
+    )
+
+
+def summary_line(r: MarketReport, map_rows: list[dict[str, str]], party_of: dict[str, str]) -> str:
+    c, m = r.cup_row, r.map_row or {}
+    ticker = m.get("kalshi_ticker", "")
+    polarity = m.get("polarity", "")
+    kid = kalshi_party_id(ticker)
+    consensus = party_id_consensus(map_rows, party_of, party=c["party"], polarity=polarity, exclude_id=c["id"])
+    check = party_id_check(kid, consensus)
+    warnings = list(r.warnings)
+    if check.startswith(("MISMATCH", "mixed")):
+        others = "/".join(sorted(consensus))
+        warnings.insert(0, f"Kalshi party ID {kid}, other verified {c['party']} rows use {others}")
+
+    sp = r.sig_price or {}
+    s_bid, s_ask = sp.get("bestBid"), sp.get("bestAsk")
+    k = r.kalshi
+    gap = "-"
+    k_mid = kalshi_mid_in_sig_terms(k, polarity) if k else None
+    if k_mid is not None and s_bid is not None and s_ask is not None:
+        gap = f"{((s_bid + s_ask) / 2 - k_mid) * 100:+.1f}"
+    candidate = (k.yes_sub_title if k else "")[:22] or "-"
+    return (
+        f"{c['id']:<5} {c['race_key']:<16} {c['party']:<3} {ticker or '-':<20} {candidate:<22} {kid or '-':<6} "
+        f"{check:<12} SIG {_fmt(s_bid)}/{_fmt(s_ask)}  K {_fmt(k.yes_bid if k else None)}/"
+        f"{_fmt(k.yes_ask if k else None)}  gap {gap:<5}  {'; '.join(warnings) or '-'}"
+    )
+
+
 # --- CLI --------------------------------------------------------------------
 
 
@@ -274,26 +323,36 @@ def main(
     settings_path: Path = SETTINGS_PATH,
 ) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("race_key", nargs="?")
+    parser.add_argument("race_key", nargs="*")
     parser.add_argument("--list", action="store_true", help="list races with tier, verified, confidence")
     parser.add_argument("--mark-verified", action="store_true", help="after review, set verified=true tier=A")
+    parser.add_argument("--summary", action="store_true", help="one line per SIG market of the given races")
     args = parser.parse_args(argv)
 
     cup_markets = read_csv(markets_path)
     races = races_in_order(cup_markets)
-    map_by_id = {r["platform_id"]: r for r in read_csv(map_path)}
+    map_rows = read_csv(map_path)
+    map_by_id = {r["platform_id"]: r for r in map_rows}
 
     if args.list:
         return cmd_list(races, map_by_id, out)
     if not args.race_key:
         parser.error("give a race_key, or --list")
+    if args.summary and args.mark_verified:
+        parser.error("--summary is read-only; use --mark-verified on one race without --summary")
+    if not args.summary and len(args.race_key) > 1:
+        parser.error("give one race_key (several only with --summary)")
 
-    key = resolve_race_key(args.race_key, list(races))
-    if key is None:
-        close = difflib.get_close_matches(args.race_key, list(races), n=5)
-        out(f"unknown race_key {args.race_key!r}." + (f" Did you mean: {', '.join(close)}?" if close else ""))
-        return 2
-    cup_rows = races[key]
+    keys = []
+    for requested in args.race_key:
+        key = resolve_race_key(requested, list(races))
+        if key is None:
+            close = difflib.get_close_matches(requested, list(races), n=5)
+            out(f"unknown race_key {requested!r}." + (f" Did you mean: {', '.join(close)}?" if close else ""))
+            return 2
+        keys.append(key)
+    key = keys[0]
+    cup_rows = [c for k in dict.fromkeys(keys) for c in races[k]]
 
     settings = _load_settings(settings_path)
     rv = settings["mapping_review"]
@@ -325,6 +384,13 @@ def main(
     except httpx.HTTPError as e:
         out(f"read failed: {e!r}")
         return 1
+
+    if args.summary:
+        party_of = {c["id"]: c["party"] for c in cup_markets}
+        out(summary_header())
+        for r in reports:
+            out(summary_line(r, map_rows, party_of))
+        return 0
 
     out(f"Race {key}: {len(cup_rows)} SIG market(s)")
     for r in reports:
