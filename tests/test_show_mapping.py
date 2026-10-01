@@ -308,3 +308,108 @@ def test_chamber_control_race_skips_state_check():
     w = review_warnings(sig_state="US", sig_bid=0.36, sig_ask=0.40, polarity="same", ticker=kalshi.ticker,
                         kalshi=kalshi, event=event, th=TH)  # fmt: skip
     assert not any("state" in x.lower() for x in w)
+
+
+# --- --summary: one line per SIG market ---------------------------------------
+
+SUMMARY_CUP_CSV = CUP_CSV + "912,1912,Will the Republican Party win the Colorado Senate?,Election Outcome,CO,Senate,,R,CO-Senate\n"
+
+# AZ D/R and CO R verified and consistent; CO D (911) is unverified and points
+# at Kalshi's Republican contract, so its party ID R disagrees with the D
+# that every other verified D row (901) uses.
+SUMMARY_MAP_CSV = """platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,verified,tier
+901,SENATEAZ-26-D,,same,,0.9,true,A
+902,SENATEAZ-26-R,,same,,0.9,true,A
+911,SENATECO-26-R,,same,,0.9,false,
+912,SENATECO-26-R,,same,,0.9,true,A
+921,GOVPRIMARYCT-26-D,,same,,0.9,false,
+931,,,,no Kalshi series,0.0,false,
+"""
+
+
+@pytest.fixture
+def summary_files(files, monkeypatch):
+    files["map"].write_text(SUMMARY_MAP_CSV)
+    files["markets"].write_text(SUMMARY_CUP_CSV)
+    monkeypatch.setitem(SIG_PRICES, "1912", (0.36, 0.40))
+    return files
+
+
+def _summary_line(text: str, market_id: str) -> str:
+    lines = [ln for ln in text.splitlines() if ln.split()[:1] == [market_id]]
+    assert len(lines) == 1, text
+    return lines[0]
+
+
+def test_summary_one_line_per_market_with_prices_and_gap(summary_files):
+    before = summary_files["map"].read_bytes()
+    code, text = run(summary_files, ["--summary", "AZ-Senate", "CO-Senate"])
+    assert code == 0
+    line = _summary_line(text, "901")
+    assert line.split()[:4] == ["901", "AZ-Senate", "D", "SENATEAZ-26-D"]
+    assert "Democratic party" in line  # Kalshi YES label = candidate
+    assert line.split("Democratic party")[1].split()[:2] == ["D", "-"]  # party ID, no other verified D row
+    assert "SIG 0.600/0.640" in line
+    assert "K 0.610/0.630" in line
+    assert "gap +0.0" in line  # 0.620 - 0.620
+    assert summary_files["map"].read_bytes() == before  # --summary never writes
+
+
+def test_summary_party_id_matches_other_verified_rows(summary_files):
+    _, text = run(summary_files, ["--summary", "AZ-Senate", "CO-Senate"])
+    assert " ok " in _summary_line(text, "902")  # 912 also uses R for R
+    assert " ok " in _summary_line(text, "912")
+    assert " - " in _summary_line(text, "901")  # no other verified D row
+
+
+def test_summary_flags_party_id_mismatch_and_gap_warning(summary_files):
+    _, text = run(summary_files, ["--summary", "CO-Senate"])
+    line = _summary_line(text, "911")
+    assert "MISMATCH(D)" in line
+    assert "gap +24.0" in line
+    assert "differ by 24.0 points" in line
+    assert "Kalshi party ID R, other verified D rows use D" in line
+
+
+def test_summary_unmapped_market_still_gets_a_line(summary_files):
+    code, text = run(summary_files, ["--summary", "DE-Senate"])
+    assert code == 0
+    line = _summary_line(text, "931")
+    assert "no Kalshi ticker mapped" in line
+
+
+def test_summary_unknown_race_fails_before_any_read(summary_files):
+    code, text = run(summary_files, ["--summary", "AZ-Senate", "XX-Nothing"])
+    assert code == 2 and "XX-Nothing" in text
+
+
+def test_summary_needs_a_race(summary_files):
+    with pytest.raises(SystemExit):
+        run(summary_files, ["--summary"])
+
+
+# --- pure party-ID logic ------------------------------------------------------
+
+from predcup.mapping_review import kalshi_party_id, party_id_consensus  # noqa: E402
+
+
+def test_kalshi_party_id_is_the_ticker_suffix():
+    assert kalshi_party_id("SENATEAZ-26-D") == "D"
+    assert kalshi_party_id("GOVPARTYRI-26-R") == "R"
+    assert kalshi_party_id("KXSENATELA-26NOV-JSMI") == "JSMI"
+    assert kalshi_party_id("") is None
+
+
+def test_party_id_consensus_uses_only_other_verified_rows_of_that_party_and_polarity():
+    party_of = {"1": "D", "2": "D", "3": "D", "4": "R", "5": "D"}
+    rows = [
+        {"platform_id": "1", "kalshi_ticker": "A-26-D", "polarity": "same", "verified": "true"},
+        {"platform_id": "2", "kalshi_ticker": "B-26-D", "polarity": "same", "verified": "TRUE"},
+        {"platform_id": "3", "kalshi_ticker": "C-26-R", "polarity": "same", "verified": "false"},
+        {"platform_id": "4", "kalshi_ticker": "D-26-R", "polarity": "same", "verified": "true"},
+        {"platform_id": "5", "kalshi_ticker": "E-26-R", "polarity": "inverted", "verified": "true"},
+    ]
+    assert party_id_consensus(rows, party_of, party="D", polarity="same", exclude_id="1") == {"D"}
+    assert party_id_consensus(rows, party_of, party="D", polarity="same", exclude_id="3") == {"D"}
+    assert party_id_consensus(rows, party_of, party="R", polarity="same", exclude_id="4") == set()
+    assert party_id_consensus(rows, party_of, party="D", polarity="inverted", exclude_id="1") == {"R"}

@@ -190,6 +190,56 @@ def review_warnings(
     return warnings
 
 
+# --- Kalshi party IDs ------------------------------------------------------
+
+
+def kalshi_party_id(ticker: str) -> str | None:
+    """The party/candidate code a Kalshi contract ticker ends in: -D / -R
+    for party contracts, a candidate code for independents."""
+    if not ticker or "-" not in ticker:
+        return None
+    return ticker.rsplit("-", 1)[1] or None
+
+
+def _is_true(value: str | None) -> bool:
+    return (value or "").strip().lower() == "true"
+
+
+def party_id_consensus(
+    map_rows: list[dict[str, str]],
+    party_of: dict[str, str],
+    *,
+    party: str,
+    polarity: str,
+    exclude_id: str,
+) -> set[str]:
+    """Kalshi party IDs used by every *other* verified row whose SIG market
+    is `party` with the same polarity. One element: the convention a new
+    row should follow; empty: nothing to compare with; several: the
+    verified rows themselves disagree."""
+    out: set[str] = set()
+    for r in map_rows:
+        pid = r.get("platform_id", "")
+        if pid == exclude_id or not _is_true(r.get("verified")):
+            continue
+        if party_of.get(pid) != party or r.get("polarity", "") != polarity:
+            continue
+        kid = kalshi_party_id(r.get("kalshi_ticker", ""))
+        if kid:
+            out.add(kid)
+    return out
+
+
+def party_id_check(kid: str | None, consensus: set[str]) -> str:
+    """Summary column: ok / MISMATCH(X) / mixed(X,Y) / - (nothing to compare)."""
+    if kid is None or not consensus:
+        return "-"
+    if len(consensus) > 1:
+        return f"mixed({','.join(sorted(consensus))})"
+    (expected,) = consensus
+    return "ok" if kid == expected else f"MISMATCH({expected})"
+
+
 # --- Marking verified -------------------------------------------------------
 
 
