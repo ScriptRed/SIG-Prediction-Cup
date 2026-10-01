@@ -578,3 +578,113 @@ def test_api_period_pnl_is_used_as_is():
     venue, _ = make_venue(Recorder([(200, body, None)]))
     pnl = run(venue.get_pnl(TID, period="day"))
     assert pnl.period_pnl == -14.0 and not pnl.derived
+
+
+# --- 2026-10-01 VM: per-endpoint timeouts and request observation -----------------------
+# Measured from the VM: portfolio/positions 0.2-18.5 s (all 200s), public endpoints 0.09 s.
+
+from predcup.venues.sig import endpoint_category, endpoint_key  # noqa: E402
+
+TIMEOUTS = {"portfolio": 45.0, "market_data": 5.0, "orders": 10.0, "other": 15.0}
+
+
+@pytest.mark.parametrize("method,path,key,category", [
+    ("GET", f"/tournaments/{SLUG}/portfolio/positions", "GET /tournaments/{slug}/portfolio/positions", "portfolio"),
+    ("GET", f"/tournaments/{SLUG}/portfolio/pnl", "GET /tournaments/{slug}/portfolio/pnl", "portfolio"),
+    ("GET", f"/tournaments/{SLUG}/portfolio/fills", "GET /tournaments/{slug}/portfolio/fills", "portfolio"),
+    ("GET", "/exchanges/prices", "GET /exchanges/prices", "market_data"),
+    ("GET", "/exchanges/1077/orderbook", "GET /exchanges/{id}/orderbook", "market_data"),
+    ("POST", "/orders/batch", "POST /orders/batch", "orders"),
+    ("POST", "/orders", "POST /orders", "orders"),
+    ("POST", "/orders/cancel-all", "POST /orders/cancel-all", "orders"),
+    ("DELETE", "/orders/1001", "DELETE /orders/{id}", "orders"),
+    ("GET", "/orders", "GET /orders", "orders"),
+    ("GET", f"/tournaments/{SLUG}", "GET /tournaments/{slug}", "other"),
+    ("GET", "/markets", "GET /markets", "other"),
+])  # fmt: skip
+def test_endpoint_key_and_category(method, path, key, category):
+    assert endpoint_key(method, path, SLUG) == key
+    assert endpoint_category(path) == category
+
+
+def make_timed_venue(handler, observed):
+    async def nosleep(s):
+        pass
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return SigVenue(client, base_url=BASE, api_key="k", tournament_slug=SLUG,
+                    on_rate_limited=lambda e, r: None, sleep=nosleep, max_retries=1, timeouts=TIMEOUTS,
+                    on_request=lambda key, category, seconds, outcome: observed.append((key, category, outcome)))  # fmt: skip
+
+
+def test_each_request_carries_its_category_timeout():
+    seen: dict[str, float] = {}
+
+    def handler(request):
+        seen[f"{request.method} {request.url.path}"] = request.extensions["timeout"]["read"]
+        p = request.url.path
+        if p.endswith(f"/tournaments/{SLUG}"):
+            return httpx.Response(200, json={"id": TID})
+        if p.endswith("/positions"):
+            return httpx.Response(200, json={"positions": [], "summary": {}})
+        if p.endswith("/exchanges/prices"):
+            return httpx.Response(200, json={"data": [], "missingIds": []})
+        if p.endswith("/orders/cancel-all"):
+            return httpx.Response(200, json={"cancelled": 0, "errors": []})
+        if p.endswith("/orders/batch"):
+            return httpx.Response(200, json={"results": [_item(0, orderId=1, open=True)]})
+        return httpx.Response(404)
+
+    venue = make_timed_venue(handler, [])
+    run(venue.get_positions(TID))
+    run(venue.get_top_of_books(["1077"], TID))
+    run(venue.cancel_all(TID, exchange_id="1077"))
+    run(venue.place_batch([order()], batch_key="b"))
+    assert seen["GET /api/v1/tournaments/midterm-elections/portfolio/positions"] == 45.0
+    assert seen["GET /api/v1/exchanges/prices"] == 5.0
+    assert seen["POST /api/v1/orders/cancel-all"] == 10.0
+    assert seen["POST /api/v1/orders/batch"] == 10.0
+    assert seen[f"GET /api/v1/tournaments/{SLUG}"] == 15.0
+
+
+def test_observer_sees_every_attempt_with_its_outcome():
+    observed: list = []
+    state = {"n": 0}
+
+    def handler(request):
+        if request.url.path.endswith(f"/tournaments/{SLUG}"):
+            return httpx.Response(200, json={"id": TID})
+        state["n"] += 1
+        if state["n"] == 1:
+            raise httpx.ReadTimeout("slow", request=request)
+        return httpx.Response(200, json={"results": [_item(0, orderId=1, open=True)]})
+
+    venue = make_timed_venue(handler, observed)
+    run(venue.place_batch([order()], batch_key="b"))  # timeout, then the same-key retry succeeds
+    batch = [(k, c, o) for k, c, o in observed if k == "POST /orders/batch"]
+    assert batch == [("POST /orders/batch", "orders", "timeout"), ("POST /orders/batch", "orders", "ok")]
+
+
+def test_timeouts_on_order_posts_stay_outcome_unknown():
+    def handler(request):
+        if request.url.path.endswith(f"/tournaments/{SLUG}"):
+            return httpx.Response(200, json={"id": TID})
+        raise httpx.ReadTimeout("slow", request=request)
+
+    venue = make_timed_venue(handler, [])
+    with pytest.raises(OrderStatusUnknown):
+        run(venue.place_batch([order()], batch_key="b"))
+
+
+def test_http_errors_are_observed_by_status():
+    observed: list = []
+
+    def handler(request):
+        if request.url.path.endswith(f"/tournaments/{SLUG}"):
+            return httpx.Response(200, json={"id": TID})
+        return httpx.Response(503, json=err("SERVICE_UNAVAILABLE"))
+
+    venue = make_timed_venue(handler, observed)
+    with pytest.raises(SigApiError):
+        run(venue.get_positions(TID))
+    assert [o for k, c, o in observed if c == "portfolio"] == ["http_503", "http_503"]

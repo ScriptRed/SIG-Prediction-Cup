@@ -63,6 +63,14 @@ venues:
     # realtime token lasts 3h (docs/platform/SUMMARY.md); refresh with margin
     realtime_token_refresh_margin_seconds: 600
     request_delay_seconds: 0.1 # pause after every read in scripts; rate limits are not in the spec
+    # Per-endpoint request timeouts (s). Measured from the VM on 2026-10-01:
+    # portfolio/positions 0.2-18.5 s under load, public endpoints ~0.09 s.
+    # A timeout on an order post stays "outcome unknown" (same key retried).
+    timeouts:
+      portfolio: 45 # /tournaments/{slug}/portfolio/* (positions, fills, P&L)
+      market_data: 5 # /exchanges/* (order books, prices)
+      orders: 10 # order posts, cancels, open-orders reads
+      other: 15 # everything else (tournament, markets)
 
 fair_value:
   # blend Kalshi + Polymarket in log-odds space, liquidity-weighted

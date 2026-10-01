@@ -426,3 +426,12 @@ def test_internal_halt_kill_is_retried_after_a_timeout(tmp_path):
     run(go())
     assert run(venue.get_open_orders(TID)) == []
     assert len(store.all_events("kill_retry")) == 2
+
+
+def test_shipped_settings_have_the_per_endpoint_timeouts():
+    import yaml
+    from pathlib import Path
+
+    t = yaml.safe_load(Path("config/settings.yaml").read_text())["venues"]["sig"]["timeouts"]
+    assert t == {"portfolio": 45, "market_data": 5, "orders": 10, "other": 15}
+    assert "timeouts=" in Path("predcup/main.py").read_text()

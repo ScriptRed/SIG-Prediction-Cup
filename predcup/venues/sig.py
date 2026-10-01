@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import asyncio
 import random
+import re
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
@@ -91,6 +93,31 @@ def format_price(price: float) -> float:
     return p
 
 
+_ID_SEGMENT = re.compile(r"/\d+(?=/|$)")
+
+
+def endpoint_key(method: str, path: str, slug: str) -> str:
+    """'GET /exchanges/1077/orderbook' -> 'GET /exchanges/{id}/orderbook'
+    (and the tournament slug -> {slug}), for latency stats."""
+    return f"{method} {_ID_SEGMENT.sub('/{id}', path.replace(f'/{slug}', '/{slug}'))}"
+
+
+def endpoint_category(path: str) -> str:
+    """Timeout / health category: portfolio reads are slow under load (VM:
+    0.2-18.5 s); market data is public and fast; orders include cancels and
+    the open-orders confirm read."""
+    if "/portfolio/" in path:
+        return "portfolio"
+    if path.startswith("/exchanges"):
+        return "market_data"
+    if path.startswith("/orders"):
+        return "orders"
+    return "other"
+
+
+RequestObserver = Callable[[str, str, float, str], None]  # (endpoint key, category, seconds, outcome)
+
+
 def _ts(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -154,6 +181,8 @@ class SigVenue(Venue):
         max_retries: int = 5,
         backoff_base_seconds: float = 0.5,
         backoff_cap_seconds: float = 30.0,
+        timeouts: dict[str, float] | None = None,
+        on_request: RequestObserver | None = None,
     ) -> None:
         # Fail closed: 429s must reach the size ramp.
         if on_rate_limited is None:
@@ -170,6 +199,10 @@ class SigVenue(Venue):
         self._backoff_base = backoff_base_seconds
         self._backoff_cap = backoff_cap_seconds
         self._tournament_id: str | None = None
+        # Per-category timeouts (portfolio / market_data / orders / other);
+        # None leaves the client's default. on_request sees every attempt.
+        self._timeouts = timeouts
+        self._on_request = on_request
         self._summary: dict | None = None  # startDate / initialBalance don't change
 
     # --- plumbing -------------------------------------------------------------
@@ -197,11 +230,18 @@ class SigVenue(Venue):
         207 batch with transient items)."""
         resp: httpx.Response | None = None
         data: Any = None
+        category = endpoint_category(path)
+        key = endpoint_key(method, path, self._slug)
+        extra: dict[str, Any] = {}
+        if self._timeouts is not None:
+            extra["timeout"] = float(self._timeouts.get(category, self._timeouts["other"]))
         for attempt in range(self._max_retries + 1):
+            started = time.monotonic()
             try:
                 resp = await self._client.request(method, f"{self._base}{path}", headers=self._headers,
-                                                  params=params, json=body)  # fmt: skip
-            except httpx.TransportError:
+                                                  params=params, json=body, **extra)  # fmt: skip
+            except httpx.TransportError as e:
+                self._observe(key, category, started, "timeout" if isinstance(e, httpx.TimeoutException) else "network_error")
                 # Timeout or network error. On an order post the engine may
                 # have accepted it before the response was lost: outcome
                 # unknown, handled exactly like 502 ORDER_STATUS_UNKNOWN (same
@@ -213,6 +253,7 @@ class SigVenue(Venue):
                     await self._sleep(self._backoff(attempt, None))
                     continue
                 raise OrderStatusUnknown(unknown_key) from None
+            self._observe(key, category, started, "ok" if resp.status_code < 400 else f"http_{resp.status_code}")
             data = _json(resp)
             code, message, details = _error_of(data)
             retry_after = _retry_after_seconds(resp.headers.get("Retry-After"))
@@ -244,6 +285,13 @@ class SigVenue(Venue):
                 return resp, data  # retries exhausted on a partial result: report it as is
             raise SigApiError(status, code or str(status), message or "retries exhausted", details)
         raise AssertionError("unreachable")  # pragma: no cover
+
+    def _observe(self, key: str, category: str, started: float, outcome: str) -> None:
+        if self._on_request is not None:
+            try:
+                self._on_request(key, category, time.monotonic() - started, outcome)
+            except Exception:  # observation must never break a request
+                pass
 
     async def _get(self, path: str, params: dict | None = None) -> Any:
         _, data = await self._send("GET", path, label=f"GET {path}", params=params)

@@ -116,7 +116,8 @@ async def amain(duration: float | None) -> int:
     try:
         async with httpx.AsyncClient(timeout=15) as sig_http, httpx.AsyncClient(timeout=15) as kalshi_http:
             venue = SigVenue(sig_http, base_url=settings["platform"]["base_url"], api_key=api_key,
-                             tournament_slug=slug, on_rate_limited=relay)  # fmt: skip
+                             tournament_slug=slug, on_rate_limited=relay,
+                             timeouts={k: float(v) for k, v in settings["venues"]["sig"]["timeouts"].items()})  # fmt: skip
             tid = await venue.tournament_id()
             configured = settings["platform"].get("tournament_id")
             if configured and configured != tid:
