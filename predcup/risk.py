@@ -275,8 +275,13 @@ def is_exposure_counted(status: OrderStatus) -> bool:
 
 
 def _order_notional(order: Order) -> float:
-    price = order.price if order.price is not None else 1.0
-    return order.quantity * price
+    """Capital the order ties up (what it can lose). Prices are YES-normalized:
+    long YES at p costs p a share; short YES at p (= long NO at 1 - p) costs
+    1 - p. A market order (no price) counts the full quantity."""
+    if order.price is None:
+        return float(order.quantity)
+    per_share = order.price if _is_long(order.side, order.action) else 1 - order.price
+    return order.quantity * per_share
 
 
 def _total_notional(orders: list[Order]) -> float:
