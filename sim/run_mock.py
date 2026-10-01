@@ -28,6 +28,7 @@ import yaml
 
 from predcup.app import App, LogAlerter, MappedTarget
 from predcup.models import OrderStatus
+from predcup.risk import _order_notional
 from predcup.store import EventStore
 from predcup.strategies.quoter import QuoteTarget
 from predcup.venues.kalshi import KalshiMarket, parse_market
@@ -129,7 +130,8 @@ async def soak(args: argparse.Namespace) -> int:
         while True:
             await asyncio.sleep(10)
             orders = [o for o in app.risk._exposure_orders() if o.status not in (OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.REJECTED)]
-            total = sum(o.quantity * (o.price or 1) for o in orders) + sum(p.notional for p in app.risk._positions)
+            # Same measure as RiskManager (short YES counts 1 - price; audit H3).
+            total = sum(_order_notional(o) for o in orders) + sum(p.notional for p in app.risk._positions)
             stats["max_total_exposure"] = max(stats["max_total_exposure"], int(total))
             if total > limits["max_total_exposure_fraction"] * 100_000 + 1:
                 stats["exposure_breach"] += 1
