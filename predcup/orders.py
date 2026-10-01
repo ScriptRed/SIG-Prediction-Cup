@@ -17,6 +17,8 @@ sent (`shadow_quote`), but never cancels or places anything.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -66,6 +68,21 @@ class OrderRouter:
         self._live_keys: dict[str, list[str]] = {}  # exchange_id -> risk keys of our resting quotes
         self._swept_keys: list[str] = []  # cancelled by cancel-all, not yet reconciled
         self._blocked = ""
+        self._inflight = 0  # live requote/test-order calls in progress
+        self.placement_count = 0  # orders that reached the venue; the kill path compares it
+
+    def _halted(self) -> bool:
+        return self._control.halted or bool(getattr(self._risk, "is_killed", False))
+
+    async def wait_idle(self, timeout_seconds: float) -> bool:
+        """True once no live requote is in flight (False on timeout). The kill
+        path waits on this, then sweeps again if anything landed meanwhile."""
+        deadline = time.monotonic() + timeout_seconds
+        while self._inflight:
+            if time.monotonic() >= deadline:
+                return False
+            await asyncio.sleep(0.01)
+        return True
 
     @property
     def shadow(self) -> bool:
@@ -135,7 +152,28 @@ class OrderRouter:
             return RouterResult(blocked=self._blocked)
         if not updates:
             return RouterResult()
+        self._inflight += 1
+        try:
+            return await self._requote_live(updates, now)
+        finally:
+            self._inflight -= 1
 
+    async def _cancel_late(self, landed: list[Order]) -> None:
+        """A halt arrived while these orders were in flight: cancel each by id
+        (never tournament-wide here), stop counting them, log."""
+        for o in landed:
+            if o.id:
+                try:
+                    await self._venue.cancel(o.id, self._tid)
+                except Exception as e:  # the kill path's sweep is the backstop
+                    self._store.log("late_cancel_failed", {"order_id": o.id, "error": repr(e)[:200]})
+                    continue
+            self._risk.confirm_order_state(o.idempotency_key, OrderStatus.CANCELLED)
+        self._store.log("late_orders_cancelled", {"count": len(landed), "order_ids": [o.id for o in landed]})
+
+    async def _requote_live(
+        self, updates: dict[str, list[tuple[Order, FairValue]]], now: datetime
+    ) -> RouterResult:
         # 1. Cancel each re-quoted market, then confirm with one read.
         try:
             for ex in updates:
@@ -167,6 +205,10 @@ class OrderRouter:
         placed = 0
         for i in range(0, len(approved), MAX_BATCH):
             chunk = approved[i : i + MAX_BATCH]
+            if self._halted():  # a kill landed while earlier chunks were in flight
+                for o in approved[i:]:
+                    self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
+                break
             batch_key = new_idempotency_key()
             try:
                 results = await self._venue.place_batch(chunk, batch_key)
@@ -186,6 +228,16 @@ class OrderRouter:
                 # Retries exhausted (429/503): some items may be live.
                 self._store.log("batch_incomplete", {"batch_key": batch_key, "status": e.status, "code": e.code})
                 self._block(f"batch {batch_key} incomplete after retries ({e.status} {e.code})")
+                break
+            landed = [r.order for r in results if r.ok]
+            self.placement_count += len(landed)
+            if self._halted():
+                await self._cancel_late(landed)
+                for r in results:
+                    if not r.ok:
+                        self._risk.confirm_order_state(r.order.idempotency_key, OrderStatus.REJECTED)
+                for o in approved[i + MAX_BATCH :]:
+                    self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
                 break
             for r in results:
                 key = r.order.idempotency_key
@@ -214,7 +266,13 @@ class OrderRouter:
         if not decision.approved:
             return None
         self._risk.record_order(order)
-        [result] = await self._venue.place_batch([order], new_idempotency_key())
+        self._inflight += 1
+        try:
+            [result] = await self._venue.place_batch([order], new_idempotency_key())
+        finally:
+            self._inflight -= 1
+        if result.ok:
+            self.placement_count += 1
         if not result.ok:
             self._risk.confirm_order_state(order.idempotency_key, OrderStatus.REJECTED)
             self._store.log("test_order_failed", {"status": result.status, "code": result.code, "message": result.message})

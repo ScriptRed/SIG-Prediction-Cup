@@ -24,6 +24,7 @@ storage:
 kill_switch:
   file_path: "KILL" # repo root; presence halts all quoting and cancels orders
   poll_interval_seconds: 1.0 # predcup/killfile.py checks for the file this often
+  wait_for_inflight_seconds: 30 # kill waits this long for an in-flight re-quote, then sweeps again
   telegram_kill_command: "/kill"
 
 # predcup/alerts.py. Bot token and chat id are secrets: .env only.

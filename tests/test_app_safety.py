@@ -347,3 +347,40 @@ def test_successful_kill_is_not_repeated(tmp_path):
     assert run(app.kill("one")).success
     assert run(app.kill("two")).success
     assert len(store.all_events("kill")) == 1
+
+
+# --- audit 2026-10-01 H2: kill while a re-quote is in flight ------------------------------
+
+
+class GatedBatchVenue(BookVenue):
+    """place_batch waits until released: the kill lands mid-flight."""
+
+    def __init__(self):
+        super().__init__()
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def place_batch(self, orders, batch_key):
+        self.entered.set()
+        await self.release.wait()
+        return await super().place_batch(orders, batch_key)
+
+
+def test_kill_during_an_in_flight_batch_leaves_no_open_orders(tmp_path):
+    venue = GatedBatchVenue()
+    app, store = make_app(tmp_path, shadow=False, live_allowed=True, venue=venue)
+
+    async def go():
+        await app.poll_kalshi_once()
+        quoting = asyncio.create_task(app.quote_once())
+        await venue.entered.wait()  # risk-checked, batch in flight
+        killing = asyncio.create_task(app.kill("Telegram /kill"))
+        await asyncio.sleep(0.05)  # kill's own cancel-all runs before the batch lands
+        venue.release.set()
+        result = await killing
+        await quoting
+        return result
+
+    result = run(go())
+    assert result.success
+    assert run(venue.get_open_orders(TID)) == []

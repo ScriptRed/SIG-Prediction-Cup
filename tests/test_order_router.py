@@ -260,3 +260,37 @@ def test_unavailable_fair_value_is_never_sent(tmp_path):
     router, *_ = make(tmp_path, shadow=True)
     with pytest.raises(ValueError):
         run(router.requote(upd(order("a"), fv=FairValue.none("stale")), NOW))
+
+
+# --- audit 2026-10-01 H2: nothing may be posted, or left resting, after a halt ----------
+
+
+class HaltDuringFirstBatchVenue(SpyVenue):
+    def __init__(self, control):
+        super().__init__()
+        self.control = control
+
+    async def place_batch(self, orders, batch_key):
+        result = await super().place_batch(orders, batch_key)
+        self.control.halt("kill arrived while the batch was in flight")
+        return result
+
+
+def test_halt_during_a_batch_stops_later_chunks_and_cancels_what_just_landed(tmp_path):
+    control = TradingControl()
+    venue = HaltDuringFirstBatchVenue(control)
+    router, _, store, _, _, _ = make(tmp_path, venue=venue)
+    router._control = control
+    res = run(router.requote(upd(*[order(f"k{i}", exchange_id=f"e{i}", market_id=f"m{i}") for i in range(60)]), NOW))
+    assert len(venue.batches) == 1  # second chunk never sent
+    assert run(venue.get_open_orders(TID)) == []  # the 50 that landed were cancelled by id
+    assert res.placed == 0
+    assert store.all_events("late_orders_cancelled")[0]["payload"]["count"] == 50
+
+
+def test_placement_counter_and_idle_wait(tmp_path):
+    router, *_ = make(tmp_path)
+    before = router.placement_count
+    run(router.requote(upd(order("a")), NOW))
+    assert router.placement_count == before + 1
+    assert run(router.wait_idle(0.1)) is True

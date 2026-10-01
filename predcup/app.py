@@ -246,7 +246,18 @@ class App:
         async with self._kill_lock:
             if self._kill_result is not None and self._kill_result.success:
                 return self._kill_result
-            self._kill_result = await self.risk.kill(reason)
+            mark = self.router.placement_count
+            result = await self.risk.kill(reason)
+            # A re-quote already past risk.check() may land after that sweep:
+            # wait (bounded) for it to finish, then sweep again if anything
+            # reached the venue. The router also cancels such orders itself.
+            idle = await self.router.wait_idle(float(self.settings["kill_switch"]["wait_for_inflight_seconds"]))
+            if not idle or self.router.placement_count != mark:
+                self.store.log("kill_second_sweep", {"router_idle": idle, "placed_during_kill": self.router.placement_count - mark})
+                result = await self.risk.kill_switch()
+                if not result.success:
+                    self.alerter.send(f"KILL second sweep: orders still open {result.remaining_order_ids}")
+            self._kill_result = result
             return self._kill_result
 
     # --- loops ------------------------------------------------------------------------

@@ -36,6 +36,7 @@ SETTINGS = {
                "max_position_shares": 200, "post_only": True, "pull_quotes_before_events": []},
     "venues": {"kalshi": {"poll_interval_seconds": 0.05}},
     "daily_summary": {"time": "08:00", "timezone": "Europe/London", "max_alerts_listed": 10},
+    "kill_switch": {"file_path": "KILL", "poll_interval_seconds": 1.0, "wait_for_inflight_seconds": 5},
 }  # fmt: skip
 
 CUP = [
