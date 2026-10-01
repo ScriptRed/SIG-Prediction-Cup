@@ -389,3 +389,55 @@ def test_timed_out_batch_keeps_orders_counted_and_blocks_until_reconciled(tmp_pa
     assert res.placed == 0
     res2 = run(router.requote(upd(order("b")), NOW))  # next cycle: no new key while unresolved
     assert res2.blocked and [o.idempotency_key for o in risk._tracked_orders()] == ["a"]
+
+
+# --- 2026-10-01 VM: per-market cancels run concurrently ------------------------------------
+
+
+class SlowCancelVenue(SpyVenue):
+    def __init__(self, slow=(), failing=()):
+        super().__init__()
+        self.slow, self.failing = set(slow), set(failing)
+        self.events: list[tuple[str, str]] = []
+
+    async def cancel_all(self, tournament_id, exchange_id=None, market_id=None):
+        import asyncio as _a
+
+        self.events.append(("start", exchange_id))
+        if exchange_id in self.slow:
+            await _a.sleep(0.2)
+        if exchange_id in self.failing:
+            self.events.append(("fail", exchange_id))
+            import httpx
+
+            raise httpx.ReadTimeout("cancel timed out")
+        self.events.append(("end", exchange_id))
+        return await super().cancel_all(tournament_id, exchange_id, market_id)
+
+
+def _three_markets():
+    return upd(order("a", exchange_id="e1", market_id="m1"), order("b", exchange_id="e2", market_id="m2"),
+               order("c", exchange_id="e3", market_id="m3"))  # fmt: skip
+
+
+def test_slow_market_cancels_dont_delay_the_others(tmp_path):
+    venue = SlowCancelVenue(slow={"e1", "e3"})  # 0.2 s each: 0.4 s if run one after another
+    router, *_ = make(tmp_path, venue=venue)
+    import time as _t
+
+    start = _t.monotonic()
+    res = run(router.requote(_three_markets(), NOW))
+    assert _t.monotonic() - start < 0.35  # concurrent
+    ends = [ex for kind, ex in venue.events if kind == "end"]
+    assert ends[0] == "e2"  # the fast market finished first, not after e1
+    assert res.done == {"e1", "e2", "e3"}
+
+
+def test_one_failing_cancel_only_skips_that_market(tmp_path):
+    venue = SlowCancelVenue(failing={"e2"})
+    router, _, store, *_ = make(tmp_path, venue=venue)
+    res = run(router.requote(_three_markets(), NOW))  # must not raise
+    assert res.done == {"e1", "e3"} and res.placed == 2
+    assert {o.exchange_id for b in venue.batches for o in b} == {"e1", "e3"}
+    assert store.all_events("cancel_failed")[0]["payload"]["exchange_id"] == "e2"
+    assert not router.blocked  # a transient cancel failure doesn't suspend everything

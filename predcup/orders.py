@@ -193,17 +193,29 @@ class OrderRouter:
     async def _requote_live(
         self, updates: dict[str, list[tuple[Order, FairValue]]], now: datetime
     ) -> RouterResult:
-        # 1. Cancel each re-quoted market, then confirm with one read.
-        try:
-            for ex in updates:
-                result = await self._venue.cancel_all(self._tid, exchange_id=ex)
+        # 1. Cancel every re-quoted market concurrently (a slow market can't
+        # delay the others), then confirm with one read. A market whose cancel
+        # failed or timed out is not re-posted this cycle: its old quotes may
+        # still rest, so nothing stacks; the next cycle tries it again.
+        markets = list(updates)
+        results = await asyncio.gather(*(self._venue.cancel_all(self._tid, exchange_id=ex) for ex in markets),
+                                       return_exceptions=True)  # fmt: skip
+        failed: set[str] = set()
+        for ex, result in zip(markets, results):
+            if isinstance(result, BaseException):
+                if not isinstance(result, Exception):
+                    raise result  # cancellation etc.
+                failed.add(ex)
+                self._store.log("cancel_failed", {"exchange_id": ex, "error": repr(result)[:200]})
+            else:
                 self._store.log("cancel", {"exchange_id": ex, "cancelled": result.cancelled, "remaining": result.remaining})
+        try:
             still_open = await self._venue.get_open_orders(self._tid)
         except SigApiError as e:
-            self._block(f"cancel failed: {e}")
+            self._block(f"open-orders confirm read failed: {e}")
             return RouterResult(blocked=self._blocked)
-        stuck = {o.exchange_id for o in still_open if o.exchange_id in updates}
-        if stuck:
+        stuck = {o.exchange_id for o in still_open if o.exchange_id in updates} | failed
+        if stuck - failed:
             ids = [o.id for o in still_open if o.exchange_id in stuck]
             self._store.log("cancel_incomplete", {"exchange_ids": sorted(stuck), "remaining_order_ids": ids})
             self._alerter.send(f"{len(ids)} order(s) remain open after cancel in {sorted(stuck)}; not re-posting there")
