@@ -24,7 +24,9 @@ class MockExchange(Venue):
         markets: list[Market] | None = None,
         books: dict[str, OrderBook] | None = None,
         starting_balance: float = 100_000.0,
+        portfolio_delay=None,  # () -> seconds: simulate SIG's slow portfolio reads (positions, fills, P&L)
     ) -> None:
+        self._portfolio_delay = portfolio_delay
         self._markets = markets or []
         self._books = books or {}
         self._starting_balance = starting_balance
@@ -109,7 +111,14 @@ class MockExchange(Venue):
             orders = [o for o in orders if o.exchange_id == exchange_id]
         return list(orders)
 
+    async def _slow_portfolio(self) -> None:
+        if self._portfolio_delay is not None:
+            import asyncio
+
+            await asyncio.sleep(self._portfolio_delay())
+
     async def get_positions(self, tournament_id: str) -> list[Position]:
+        await self._slow_portfolio()
         return list(self._positions.get(tournament_id, {}).values())
 
     async def get_balance(self, tournament_id: str) -> float:
@@ -156,12 +165,15 @@ class MockExchange(Venue):
         return fill
 
     async def get_new_fills(self, tournament_id: str, known_ids: set[str]) -> list[Fill]:
+        await self._slow_portfolio()
         return [f for f in self._fills.get(tournament_id, []) if f.id not in known_ids]
 
     async def get_pnl(self, tournament_id: str, period: str):
         """The mock doesn't value positions: report a flat day (0 P&L) so
         live-mode runs have a daily P&L, as the real adapter provides."""
         from predcup.venues.sig import TournamentPnl
+
+        await self._slow_portfolio()
 
         balance = self._balances.get(tournament_id, self._starting_balance)
         return TournamentPnl(period=period, period_pnl=0.0, unrealized_pnl=0.0, total_account_value=balance, roi=None)

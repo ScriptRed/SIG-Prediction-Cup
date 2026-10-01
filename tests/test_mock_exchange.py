@@ -180,3 +180,18 @@ def test_top_of_books_from_configured_books():
     exchange = MockExchange()
     exchange.set_top_of_book("36", 0.4, 0.45)
     assert run(exchange.get_top_of_books(["36", "37"], TOURNAMENT_A)) == {"36": (0.4, 0.45), "37": (None, None)}
+
+
+def test_portfolio_reads_can_be_slowed_without_slowing_the_others():
+    import time
+
+    exchange = MockExchange(portfolio_delay=lambda: 0.15)
+    start = time.monotonic()
+    run(exchange.get_positions(TOURNAMENT_A))
+    run(exchange.get_new_fills(TOURNAMENT_A, known_ids=set()))
+    run(exchange.get_pnl(TOURNAMENT_A, period="day"))
+    assert time.monotonic() - start >= 0.45
+    start = time.monotonic()
+    run(exchange.get_top_of_books(["36"], TOURNAMENT_A))
+    run(exchange.get_open_orders(TOURNAMENT_A))
+    assert time.monotonic() - start < 0.05

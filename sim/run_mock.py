@@ -87,7 +87,11 @@ async def soak(args: argparse.Namespace) -> int:
     for suffix in ("", "-wal", "-shm"):
         Path(str(db) + suffix).unlink(missing_ok=True)
     store = EventStore(db)
-    venue = MockExchange(starting_balance=100_000.0)
+    delay = None
+    if args.slow_portfolio:
+        lo, hi = args.slow_portfolio
+        delay = lambda: rng.uniform(lo, hi)  # noqa: E731  SIG's portfolio reads under load
+    venue = MockExchange(starting_balance=100_000.0, portfolio_delay=delay)
     if not isinstance(venue, MockExchange):  # the one place "live" is allowed: never a real venue
         raise SystemExit("run_mock only runs against MockExchange")
     targets, meta = build_targets(args.markets)
@@ -155,6 +159,12 @@ async def soak(args: argparse.Namespace) -> int:
           f"tournament-wide cancel-alls {ev['kill_switch']}, fair-value changes {ev['fair_value']}")
     print(f"reconciliations {dict(recon)}; ramp step now {ramp[-1]['step'] if ramp else '-'}")
     print(f"loop lag: max {max(lags):.3f}s, over threshold {sum(1 for e in store.all_events('loop_lag') if e['payload']['over_threshold'])}")
+    per_loop: dict[str, float] = {}
+    for e in store.all_events("loop_lag"):
+        per_loop[e["payload"]["loop"]] = max(per_loop.get(e["payload"]["loop"], 0.0), e["payload"]["lag_seconds"])
+    print("loop lag max per loop: " + ", ".join(f"{k} {v:.2f}s" for k, v in sorted(per_loop.items())))
+    pnl_sources = Counter(e["payload"].get("source") for e in store.all_events("pnl"))
+    print(f"daily P&L fed from: {dict(pnl_sources)}; unavailable {len(store.all_events('pnl_unavailable'))} times")
     print(f"risk rejections: {dict(rejections.most_common(6))}")
     print(f"max total exposure {stats['max_total_exposure']:,}; halted: {app.control.halted} {app.control.reason}")
     print(f"final positions: {len(store.local_positions(TID))} markets, alerts {ev['alert']}")
@@ -183,6 +193,8 @@ def main() -> int:
     p.add_argument("--fill-prob", type=float, default=0.03)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--db", default="data/mock_run.db")
+    p.add_argument("--slow-portfolio", type=float, nargs=2, metavar=("MIN", "MAX"), default=None,
+                   help="delay each positions/fills/P&L read by uniform(MIN, MAX) seconds")
     return asyncio.run(soak(p.parse_args()))
 
 
