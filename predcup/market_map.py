@@ -14,6 +14,9 @@ import re
 from dataclasses import dataclass
 
 from predcup.cup_markets import STATE_ABBREVIATIONS
+from predcup.venues.polymarket import PolymarketSchemaError, parse_gamma_market
+
+ABBR_TO_STATE = {v: k for k, v in STATE_ABBREVIATIONS.items()}
 
 PARTY_KEYWORDS = {
     "R": ("republican",),
@@ -195,3 +198,128 @@ def prefer_2026_event_markets(markets: list[dict]) -> list[dict]:
 
     cycle = [m for m in markets if is_2026(m)]
     return cycle or markets
+
+
+# --- Polymarket (Gamma public-search events) ---------------------------------
+#
+# Polymarket's 2026 general-election winner markets (observed live
+# 2026-10-01) are one binary market per party inside a negRisk event:
+#   "<State> Senate Election Winner":   Will the Republicans win the Texas Senate race in 2026?
+#   "<State> Governor Election Winner": Will the Democrats win the Nevada governor race in 2026?
+#                                       Will an independent win the Michigan governor race in 2026?
+#   "<ST>-<DD> House Election Winner":  Will the Democratic Party win the PA-07 House seat?
+#   "Which party will win the Senate in 2026?":
+#       Will the Republican Party control the Senate after the 2026 Midterm elections?
+# Around them sit look-alikes that must never match: margin-of-victory
+# brackets, county winners, turnout, "within 5%", state-legislature control
+# ("control the Texas Senate"), primaries, candidate-specific markets and
+# inactive "Person A" placeholders. So the whole question must fit the
+# race's pattern exactly; the party is read from the question only (never
+# the slug or groupItemTitle, which names a candidate); more than one
+# qualifying market is ambiguous and gives no match.
+
+_POLY_PARTY = {
+    "D": r"the Democrats|the Democratic Party",
+    "R": r"the Republicans|the Republican Party",
+    "I": r"an independent|an independent candidate",
+}
+_POLY_EVENT_EXCLUDE = ("primary", "nominee", "nomination", "runoff", "caucus", "margin", "county", "turnout")
+_POLY_YEAR = 2026
+
+
+def poly_search_query(office: str, state: str, district: str) -> str:
+    """Gamma /public-search query for a race's winner event."""
+    if state == "US":
+        return f"Which party will win the {office} in 2026?"
+    if office == "House":
+        return f"{state}-{int(district):02d} House Election Winner"
+    return f"{ABBR_TO_STATE[state]} {office} Election Winner"
+
+
+def _poly_question_re(office: str, state: str, district: str, party: str) -> re.Pattern | None:
+    who = _POLY_PARTY.get(party)
+    if who is None:
+        return None
+    if state == "US":
+        if party == "I":
+            return None
+        body = rf"Will (?:{who}) control the {office} after the 2026 Midterm elections\?"
+    elif office == "House":
+        body = rf"Will (?:{who}) win the {state}-{int(district):02d} House seat\?"
+    elif office in ("Senate", "Governor"):
+        body = rf"Will (?:{who}) win the {re.escape(ABBR_TO_STATE[state])} {office} race in 2026\?"
+    else:
+        return None
+    return re.compile(body, re.IGNORECASE)
+
+
+def _is_2026(market) -> bool:
+    """Every year named in the question is 2026, and the question or (for
+    year-less House questions) the end date puts it in 2026."""
+    years = {int(y) for y in _YEAR_RE.findall(market.question)}
+    if years - {_POLY_YEAR}:
+        return False
+    return bool(years) or (market.end_date is not None and market.end_date.year == _POLY_YEAR)
+
+
+def match_poly_party(
+    events: list[dict], office: str, state: str, district: str, party: str
+) -> tuple[ExternalMarket | None, str]:
+    """(YES-token match or None, note). Exactly one live, binary, 2026,
+    pattern-exact market across all `events`, or no match."""
+    pattern = _poly_question_re(office, state, district, party)
+    if pattern is None:
+        return None, f"no Polymarket pattern for {office} {state} party {party}"
+    hits: dict[str, ExternalMarket] = {}
+    for ev in events:
+        if ev.get("closed") or any(kw in (ev.get("title") or "").lower() for kw in _POLY_EVENT_EXCLUDE):
+            continue
+        for raw in ev.get("markets") or []:
+            if raw.get("active") is not True or raw.get("closed") is not False:
+                continue
+            if not pattern.fullmatch((raw.get("question") or "").strip()):
+                continue
+            try:
+                m = parse_gamma_market(raw)
+            except (PolymarketSchemaError, ValueError, KeyError):
+                continue
+            if _is_2026(m):
+                hits[m.yes_token_id] = ExternalMarket(ref=m.yes_token_id, text=m.question)
+    if len(hits) == 1:
+        return next(iter(hits.values())), ""
+    if not hits:
+        return None, f"no Polymarket 2026 general market for {office} {state}{district} {party}"
+    return None, f"Polymarket ambiguous: {len(hits)} markets fit {office} {state}{district} {party}"
+
+
+def _without_poly_notes(notes: str) -> list[str]:
+    return [n for n in (p.strip() for p in notes.split(";")) if n and "polymarket" not in n.lower()]
+
+
+def apply_poly_column(
+    map_rows: list[dict[str, str]], results: dict[str, tuple[ExternalMarket | None, str]]
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Write Polymarket matches into market_map.csv rows. A verified=true
+    row changes in poly_token_id only and is listed in the returned review
+    (a human verified its Kalshi side, not this); an unverified row also
+    gets its Polymarket note refreshed. Confidence is never changed here.
+    Rows with no result are returned unchanged."""
+    out: list[dict[str, str]] = []
+    review: list[dict[str, str]] = []
+    for row in map_rows:
+        res = results.get(row["platform_id"])
+        if res is None:
+            out.append(row)
+            continue
+        hit, note = res
+        new = {**row, "poly_token_id": hit.ref if hit else ""}
+        if row.get("verified", "").strip().lower() == "true":
+            review.append({
+                "platform_id": row["platform_id"], "kalshi_ticker": row.get("kalshi_ticker", ""),
+                "old_poly_token_id": row.get("poly_token_id", ""), "new_poly_token_id": new["poly_token_id"],
+                "new_question": hit.text if hit else "", "note": note,
+            })  # fmt: skip
+        else:
+            new["rule_diff_notes"] = "; ".join(_without_poly_notes(row.get("rule_diff_notes", "")) + ([note] if note else []))
+        out.append(new)
+    return out, review

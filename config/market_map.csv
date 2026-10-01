@@ -1,80 +1,80 @@
 platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,verified,tier,fusion_risk
-388,SENATERI-26-R,34189052194715415717712638492295939369730261135279818111658380308037908103272,same,Kalshi YES label 'Raymond McKay' but rules resolve on party sworn in,0.8,false,,false
-387,SENATERI-26-D,488419780624561349537087484870565521893053101280427867652103933922852715222,same,Kalshi YES label 'Jack Reed' but rules resolve on party sworn in,0.8,false,,false
-386,SENATEDE-26-R,87168139162038142124325281596428703628651393008967709292675786182583009487326,same,Kalshi YES label 'Republican party' but rules resolve on party sworn in,0.8,false,,false
+388,SENATERI-26-R,18128207363125529330540526475108389147728645885887417700651189282375630645842,same,Kalshi YES label 'Raymond McKay' but rules resolve on party sworn in,0.8,false,,false
+387,SENATERI-26-D,77004273724753899183699441849597881417275931290950171679615354396048734034984,same,Kalshi YES label 'Jack Reed' but rules resolve on party sworn in,0.8,false,,false
+386,SENATEDE-26-R,18791277393217683755628516529477058015186638022373024614300661393042993809537,same,Kalshi YES label 'Republican party' but rules resolve on party sworn in,0.8,false,,false
 385,GOVPARTYRI-26-R,102532646565376609462398061495436415751549869365588135784659237547896983513156,same,,0.8,false,,false
 384,GOVPARTYRI-26-D,12963869833838696349134591178892586509546549676681530057691780490969939726649,same,,0.8,false,,false
-383,SENATEOK-26-D,6307834485558435215808626904255859755441792356631836236470061805834871616531,same,Kalshi YES label 'N’Kiyla Thomas' but rules resolve on party sworn in,0.8,false,,false
-382,SENATENH-26-R,70746788989825809884465565578567236463704750444782169027788009807135230037639,same,Kalshi YES label 'John E. Sununu' but rules resolve on party sworn in,0.8,false,,false
-381,SENATENH-26-D,63507724462133231104787876735572829496489051711286122158266079845394213067342,same,Kalshi YES label 'Chris Pappas' but rules resolve on party sworn in,0.8,false,,false
-380,SENATEMA-26-R,52178324110389695602675502049040070314896672216017803310891522866815977262616,same,Kalshi YES label 'John Deaton' but rules resolve on party sworn in,0.8,false,,false
-379,SENATEMA-26-D,43221719937764076433038032766035539743238562888772055254753209595632126672746,same,Kalshi YES label 'Ed Markey' but rules resolve on party sworn in,0.8,false,,false
-378,SENATEAK-26-R,,same,Kalshi YES label 'Republican party' but rules resolve on party sworn in; Polymarket event alaska-senate-election-margin-of-victory-first-round,0.45,false,,false
-377,SENATEAK-26-D,,same,Kalshi YES label 'Democratic party' but rules resolve on party sworn in; Polymarket event alaska-senate-election-margin-of-victory-first-round,0.45,false,,false
-376,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Hampshire 01 House 2026' returned no confident title match,0.0,false,,false
-375,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Hampshire 01 House 2026' returned no confident title match,0.0,false,,false
+383,SENATEOK-26-D,112281295057865404870041957222562306206517476142557838682690649172966968734671,same,Kalshi YES label 'N’Kiyla Thomas' but rules resolve on party sworn in,0.8,false,,false
+382,SENATENH-26-R,62227089537100115269143206481757249285124282589590263790284791475153705872216,same,Kalshi YES label 'John E. Sununu' but rules resolve on party sworn in,0.8,false,,false
+381,SENATENH-26-D,82410058691149830741200014405570918770267839390767234397030380747995715352939,same,Kalshi YES label 'Chris Pappas' but rules resolve on party sworn in,0.8,false,,false
+380,SENATEMA-26-R,94720102345103978732985991591541449349105398685307981352929740529082927790385,same,Kalshi YES label 'John Deaton' but rules resolve on party sworn in,0.8,false,,false
+379,SENATEMA-26-D,37806907368043161074949113436745462734936336037202698916361016094424427186209,same,Kalshi YES label 'Ed Markey' but rules resolve on party sworn in,0.8,false,,false
+378,SENATEAK-26-R,,same,Kalshi YES label 'Republican party' but rules resolve on party sworn in; no Polymarket 2026 general market for Senate AK R,0.45,false,,false
+377,SENATEAK-26-D,,same,Kalshi YES label 'Democratic party' but rules resolve on party sworn in; no Polymarket 2026 general market for Senate AK D,0.45,false,,false
+376,,91186816975424134991471599978287903711550131664584931108307233067509874308550,,no Kalshi party-level series identified for this race,0.0,false,,false
+375,,15841973896294397863780283211777886833063131427675236235397936182214462263761,,no Kalshi party-level series identified for this race,0.0,false,,false
 374,GOVPARTYOK-26-R,12195532376431728872322429427491005809800415403259444414908025975252692275196,same,,0.8,false,,false
 373,GOVPARTYNH-28-R,74721757099502856629978429446702729437619614092592091000501653336065671742582,same,"Kalshi has no GOVPARTYNH-26; GOVPARTYNH-28 is the 2026 race (sub_title 'In 2026', rules 'pursuant to the 2026 election') despite the ticker and Jan 2029 expiry",0.8,false,,false
 372,GOVPARTYNH-28-D,50014042446564445111498439180144732017863294969428914194102372141019045896702,same,"Kalshi has no GOVPARTYNH-26; GOVPARTYNH-28 is the 2026 race (sub_title 'In 2026', rules 'pursuant to the 2026 election') despite the ticker and Jan 2029 expiry",0.8,false,,false
 371,GOVPARTYMA-26-R,60883119277247470994582429550632811829505423471772740208057726618094988141160,same,,0.8,true,A,false
 370,GOVPARTYMA-26-D,86599393407315290835574565918707146460542680358932655202787183319230565551172,same,,0.8,true,A,false
-369,KXGOVPARTYAK-26-R,,same,Polymarket event alaska-governor-election-winner,0.45,false,,false
-368,KXGOVPARTYAK-26-D,,same,Polymarket event alaska-governor-election-winner,0.45,false,,false
-366,SENATEWY-26-R,80060936088366025258144304903076471910323249274330190845795758792258608520986,same,Kalshi YES label 'Harriet Hageman' but rules resolve on party sworn in,0.8,false,,false
-365,SENATEWY-26-D,27404948209862839323844430001109403958819859044996868930478464247467785332053,same,Kalshi YES label 'James Byrd' but rules resolve on party sworn in,0.8,false,,false
-364,SENATEVA-26-R,102380752267570638620869131164535638205675589925529546317971847496035861484331,same,Kalshi YES label 'Bert Mizusawa' but rules resolve on party sworn in,0.8,false,,false
-363,SENATETN-26-R,96929318213961284540286317104462937968294059852316583297126595891767297252339,same,Kalshi YES label 'Bill Hagerty' but rules resolve on party sworn in,0.8,false,,false
-362,SENATETN-26-D,32832180976319820233770784594777532825515834160906037910741389521155405934640,same,Kalshi YES label 'Marquita Bradshaw' but rules resolve on party sworn in,0.8,false,,false
-361,SENATEMN-26-R,94144666696080257320875321773929351799444961707541341062900970628705137265205,same,Kalshi YES label 'Michele Tafoya' but rules resolve on party sworn in,0.8,false,,false
-360,SENATEMN-26-D,48818313016350396669748685076872055722193706704707501697175341199391879767921,same,Kalshi YES label 'Peggy Flanagan' but rules resolve on party sworn in,0.8,false,,false
-359,SENATEMI-26-R,86195514384851409619905031828040583814997063744044234269815468933123074129946,same,Kalshi YES label 'Mike Rogers' but rules resolve on party sworn in,0.8,true,A,false
-358,SENATEMI-26-D,78995588923102427048722840184221076815112013093156533999185840362271594836494,same,Kalshi YES label 'Abdul El-Sayed' but rules resolve on party sworn in,0.8,true,A,false
-357,SENATEKS-26-R,2775855766473723987708877490863815114596846378950095876075735517458060155548,same,Kalshi YES label 'Roger Marshall' but rules resolve on party sworn in,0.8,false,,false
-356,SENATEKS-26-D,112865931018535043924604877802427749327024008755764693656162236690266569063025,same,Kalshi YES label 'Adam Hamilton' but rules resolve on party sworn in,0.8,false,,false
-355,SENATEFLS-26-R,96255961466430927996318129212919625032633852580127611416492268354634068382291,same,Kalshi YES label 'Ashley Moody' but rules resolve on party sworn in,0.8,false,,false
-354,SENATEFLS-26-D,90542063534211195117805498749862682740907741073883285554993204478120111187243,same,Kalshi YES label 'Angie Nixon' but rules resolve on party sworn in,0.8,false,,false
-353,SENATEDE-26-D,12498300569608521064894052980595735860966040427271467777010581510310030273291,same,Kalshi YES label 'Democratic party' but rules resolve on party sworn in,0.8,false,,false
-352,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 03 House 2026' returned no confident title match,0.0,false,,false
-351,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 03 House 2026' returned no confident title match,0.0,false,,false
-350,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 01 House 2026' returned no confident title match,0.0,false,,false
-349,,,,no Kalshi party-level series identified for this race; Polymarket search 'Wisconsin 01 House 2026' returned no confident title match,0.0,false,,false
-348,,,,no Kalshi party-level series identified for this race; Polymarket search 'Washington 03 House 2026' returned no confident title match,0.0,false,,false
-347,,,,no Kalshi party-level series identified for this race; Polymarket search 'Washington 03 House 2026' returned no confident title match,0.0,false,,false
-346,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 07 House 2026' returned no confident title match,0.0,false,,false
-345,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 05 House 2026' returned no confident title match,0.0,false,,false
-344,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 05 House 2026' returned no confident title match,0.0,false,,false
-343,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 02 House 2026' returned no confident title match,0.0,false,,false
-342,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 01 House 2026' returned no confident title match,0.0,false,,false
-341,,,,no Kalshi party-level series identified for this race; Polymarket search 'Tennessee 05 House 2026' returned no confident title match,0.0,false,,false
-340,,,,no Kalshi party-level series identified for this race; Polymarket search 'Tennessee 05 House 2026' returned no confident title match,0.0,false,,false
-339,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 05 House 2026' returned no confident title match,0.0,false,,false
-338,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 05 House 2026' returned no confident title match,0.0,false,,false
-337,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 02 House 2026' returned no confident title match,0.0,false,,false
-336,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 02 House 2026' returned no confident title match,0.0,false,,false
-335,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 01 House 2026' returned no confident title match,0.0,false,,false
-334,,,,no Kalshi party-level series identified for this race; Polymarket search 'Minnesota 01 House 2026' returned no confident title match,0.0,false,,false
-333,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-michigan,0.0,false,,false
-332,,67982187293376836536451130152252511056456663224321788143931560486404777854841,same,no Kalshi party-level series identified for this race,0.35,false,,false
-331,,,,no Kalshi party-level series identified for this race; Polymarket search 'Michigan 07 House 2026' returned no confident title match,0.0,false,,false
-330,,,,no Kalshi party-level series identified for this race; Polymarket search 'Michigan 07 House 2026' returned no confident title match,0.0,false,,false
-329,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 22 House 2026' returned no confident title match,0.0,false,,false
-328,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 22 House 2026' returned no confident title match,0.0,false,,false
-327,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 20 House 2026' returned no confident title match,0.0,false,,false
-326,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 20 House 2026' returned no confident title match,0.0,false,,false
-325,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 16 House 2026' returned no confident title match,0.0,false,,false
-324,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 16 House 2026' returned no confident title match,0.0,false,,false
-323,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 13 House 2026' returned no confident title match,0.0,false,,false
-322,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 09 House 2026' returned no confident title match,0.0,false,,false
-321,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 07 House 2026' returned no confident title match,0.0,false,,false
-320,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 07 House 2026' returned no confident title match,0.0,false,,false
-319,,,,no Kalshi party-level series identified for this race; Polymarket search 'Alabama 02 House 2026' returned no confident title match,0.0,false,,false
-318,,,,no Kalshi party-level series identified for this race; Polymarket search 'Alabama 02 House 2026' returned no confident title match,0.0,false,,false
+369,KXGOVPARTYAK-26-R,,same,no Polymarket 2026 general market for Governor AK R,0.45,false,,false
+368,KXGOVPARTYAK-26-D,,same,no Polymarket 2026 general market for Governor AK D,0.45,false,,false
+366,SENATEWY-26-R,79928077180713102609948647660034580156932658823394290272651325523866637424642,same,Kalshi YES label 'Harriet Hageman' but rules resolve on party sworn in,0.8,false,,false
+365,SENATEWY-26-D,49797779751182114244550178900838522175054943127409025738411962628574218037267,same,Kalshi YES label 'James Byrd' but rules resolve on party sworn in,0.8,false,,false
+364,SENATEVA-26-R,30879673422883665658998557649780314115615509792114924412311244164523672753717,same,Kalshi YES label 'Bert Mizusawa' but rules resolve on party sworn in,0.8,false,,false
+363,SENATETN-26-R,23982348354062524972887126807952244605287433791462351968680411830837664790435,same,Kalshi YES label 'Bill Hagerty' but rules resolve on party sworn in,0.8,false,,false
+362,SENATETN-26-D,109770398277480657132311708823042764648778271467537669934185093015733099277755,same,Kalshi YES label 'Marquita Bradshaw' but rules resolve on party sworn in,0.8,false,,false
+361,SENATEMN-26-R,70179930004460104520571721963263381325865077807861641105900318902168490512539,same,Kalshi YES label 'Michele Tafoya' but rules resolve on party sworn in,0.8,false,,false
+360,SENATEMN-26-D,5210147086444382339849101722545511095151948730486562412029285471203011774407,same,Kalshi YES label 'Peggy Flanagan' but rules resolve on party sworn in,0.8,false,,false
+359,SENATEMI-26-R,1046980875306043125128331871114794349002409233139736033870402475326170083426,same,Kalshi YES label 'Mike Rogers' but rules resolve on party sworn in,0.8,true,A,false
+358,SENATEMI-26-D,71772627544132140586824126381855151743830987860593343955509593715269534710061,same,Kalshi YES label 'Abdul El-Sayed' but rules resolve on party sworn in,0.8,true,A,false
+357,SENATEKS-26-R,18131974965869813060047290511060211742274666573066200470724290584768041211203,same,Kalshi YES label 'Roger Marshall' but rules resolve on party sworn in,0.8,false,,false
+356,SENATEKS-26-D,75079868093228966915894372964099062660587490227046756021175661325867722540666,same,Kalshi YES label 'Adam Hamilton' but rules resolve on party sworn in,0.8,false,,false
+355,SENATEFLS-26-R,47848555635748009983462962481545341194026880518141560747711492227563791266566,same,Kalshi YES label 'Ashley Moody' but rules resolve on party sworn in,0.8,false,,false
+354,SENATEFLS-26-D,109815773012907461372639157658293071578555374097742562684476865021743386609433,same,Kalshi YES label 'Angie Nixon' but rules resolve on party sworn in,0.8,false,,false
+353,SENATEDE-26-D,109467029375682717672947466588331781838347232688418556926634334189471462678711,same,Kalshi YES label 'Democratic party' but rules resolve on party sworn in,0.8,false,,false
+352,,83772236231104306836754599890295414817047560410380925946355605231115771621017,,no Kalshi party-level series identified for this race,0.0,false,,false
+351,,98533340650340151055858210214498969967462170000657407829633743183238896087456,,no Kalshi party-level series identified for this race,0.0,false,,false
+350,,89691692433810708662044713280560196245651593280559985593960312638148344324296,,no Kalshi party-level series identified for this race,0.0,false,,false
+349,,27864379735636967187061174592974985530606192477476602134082994654383977817622,,no Kalshi party-level series identified for this race,0.0,false,,false
+348,,11450408400059654095752682163375174616927289912740528299907491682505834882757,,no Kalshi party-level series identified for this race,0.0,false,,false
+347,,62003269433640683744291727761785528693342099533191419822618434570267086928393,,no Kalshi party-level series identified for this race,0.0,false,,false
+346,,13432621903631649165156306037190483686486704889711495381938238490251535633776,,no Kalshi party-level series identified for this race,0.0,false,,false
+345,,83253007588985953900662535978265304048199216427463571583210985764316132662845,,no Kalshi party-level series identified for this race,0.0,false,,false
+344,,30424541292784877350495001354252975055952568624850695789713995653053526735723,,no Kalshi party-level series identified for this race,0.0,false,,false
+343,,113775721914358731979638137579752258137123447875996657512004068518320376669224,,no Kalshi party-level series identified for this race,0.0,false,,false
+342,,88628412725357801969852238315853152041907755032296775468463465337049299853893,,no Kalshi party-level series identified for this race,0.0,false,,false
+341,,70611387410738959528084339484893630361746409691183277603893453160832832415748,,no Kalshi party-level series identified for this race,0.0,false,,false
+340,,21093900327085732156538279868500731871043932639237011371281062480462349465304,,no Kalshi party-level series identified for this race,0.0,false,,false
+339,,85481834502498043935806386600094738202338314908938508331117373587697666440459,,no Kalshi party-level series identified for this race,0.0,false,,false
+338,,20781040640207419108275494852260640607740976077797936236220411009198028862221,,no Kalshi party-level series identified for this race,0.0,false,,false
+337,,27227352588644125911835255791745199294766435051633840882741518772610280264133,,no Kalshi party-level series identified for this race,0.0,false,,false
+336,,101761583924149127934699530188897560119595562747749947811419542814081248785009,,no Kalshi party-level series identified for this race,0.0,false,,false
+335,,58414915443056575600546845688231939406497093430617962204950899073959516863962,,no Kalshi party-level series identified for this race,0.0,false,,false
+334,,53556044615407667948482140924138670085564709060050296606327145637179427254399,,no Kalshi party-level series identified for this race,0.0,false,,false
+333,,43752127134995564310826939255040140810170663034403700378883950354967468648845,,no Kalshi party-level series identified for this race,0.0,false,,false
+332,,75685534826787951976275953631896177236439299709473517876953614908104349066066,same,no Kalshi party-level series identified for this race,0.35,false,,false
+331,,90239537120799856559379339880905629013239262905922873444067766874892362837014,,no Kalshi party-level series identified for this race,0.0,false,,false
+330,,28428563408232158641020832230598845099279456308678642815367173717175353290703,,no Kalshi party-level series identified for this race,0.0,false,,false
+329,,12503562961051694670561093522011301968376611490945772097489304120208051360657,,no Kalshi party-level series identified for this race,0.0,false,,false
+328,,9888897571794010752121877049436014412394792546592129944638664529404498838517,,no Kalshi party-level series identified for this race,0.0,false,,false
+327,,99998409366814058509324978903464760824797071645181220838890227821177183933287,,no Kalshi party-level series identified for this race,0.0,false,,false
+326,,7861599392964570899063295249757924331582887786226297517280676454972508298031,,no Kalshi party-level series identified for this race,0.0,false,,false
+325,,15056064872112675856476546973246733011825608647719006314444015066456521530341,,no Kalshi party-level series identified for this race,0.0,false,,false
+324,,106958534192257552731131706251545716690561203965658398267038573027472601603038,,no Kalshi party-level series identified for this race,0.0,false,,false
+323,,10797071126504743123515085716419360987107478266428470507477377131012323100968,,no Kalshi party-level series identified for this race,0.0,false,,false
+322,,14535768089815400273847771354088826502078939671987391994275253603566532191654,,no Kalshi party-level series identified for this race,0.0,false,,false
+321,,28134558928888227948813381987057565018866784201189850460618625875753502909061,,no Kalshi party-level series identified for this race,0.0,false,,false
+320,,48595994389294380413605252588038399089739882614541392889205137632817333951567,,no Kalshi party-level series identified for this race,0.0,false,,false
+319,,110498646838643141699770234895735915394620065036723874056548571888067488950164,,no Kalshi party-level series identified for this race,0.0,false,,false
+318,,13189761649035136014216228195645475511361901020555722779072382901094466765019,,no Kalshi party-level series identified for this race,0.0,false,,false
 317,GOVPARTYWY-26-R,110662231382210721528347530139180000273032668591469451320298639508988983810813,same,,0.8,false,,false
 316,GOVPARTYWY-26-D,27698880682601961151205903485139737259763277359865731443999905606295817799595,same,,0.8,false,,false
 315,GOVPARTYWI-26-R,110568426700454908727813010666782278712329569099119457880819387703511785225289,same,,0.8,false,,false
 314,GOVPARTYWI-26-D,47540146623620182724372695903724852067595146419459482790641441152489267651664,same,,0.8,false,,false
-313,GOVPARTYVT-26-R,65605367058878559301637243726634950490412574104227831338798013303495243850873,same,Remapped 2026-09-30 from GOVPARTYVT-28 (the 2028 election) to the 2026 event,0.8,false,,false
-312,GOVPARTYVT-26-D,72114266463379433906187959416306959572546325827181022723106443232608510560756,same,Remapped 2026-09-30 from GOVPARTYVT-28 (the 2028 election) to the 2026 event,0.8,false,,false
+313,GOVPARTYVT-26-R,41583919731714354912849507182398941127545694257513505398713274521520484370640,same,Remapped 2026-09-30 from GOVPARTYVT-28 (the 2028 election) to the 2026 event,0.8,false,,false
+312,GOVPARTYVT-26-D,60184991030711150053889856154789765911962237408503307206289529109604385579009,same,Remapped 2026-09-30 from GOVPARTYVT-28 (the 2028 election) to the 2026 event,0.8,false,,false
 311,GOVPARTYTN-26-R,24326213014906491852819643583064878883456155870415421965354259617491710449915,same,,0.8,false,,false
 310,GOVPARTYTN-26-D,42092635016892213098098431597314233695276464574605657188222427223673881775927,same,,0.8,false,,false
 309,GOVPARTYSD-26-R,33837211479232375079024923304907620849682048653904904303440832993092201214603,same,,0.8,false,,false
@@ -89,109 +89,109 @@ platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,veri
 300,GOVPARTYFL-26-R,107409796822153809778143872196236532785178617102787858261374110829112218839748,same,,0.8,false,,false
 299,GOVPARTYFL-26-D,45666577334498374671436529469006420565255125221309505855441517627481607414492,same,,0.8,false,,false
 298,GOVPARTYCT-26-D,94716743709853585469973889676994451123824166409123282527490222914006156870020,same,,0.8,false,,false
-297,SENATEWV-26-R,29846961179855614140835363966990157783478597940276279214088983837090479162375,same,Kalshi YES label 'Shelley Moore Capito' but rules resolve on party sworn in,0.8,false,,false
-296,SENATEWV-26-D,52028228058567050490082336528222808703081642301982405857835418872316431269613,same,Kalshi YES label 'Rachel Fetty Anderson' but rules resolve on party sworn in,0.8,false,,false
-295,SENATEVA-26-D,14293665860978595537579833125649154345910523679283393880767187920364090023903,same,Kalshi YES label 'Mark Warner' but rules resolve on party sworn in,0.8,false,,false
-294,SENATETX-26-R,67705074388177698785792560803809928179669581261522555105590516726794073778500,same,Kalshi YES label 'Ken Paxton' but rules resolve on party sworn in,0.8,true,A,false
-293,SENATETX-26-D,107545268054037477232449143519427272925097248973632755711208753797987766276875,same,Kalshi YES label 'James Talarico' but rules resolve on party sworn in,0.8,true,A,false
-292,SENATESD-26-R,99875861300687458024134185930299538942385507938665929465399879102992446999241,same,Kalshi YES label 'Mike Rounds' but rules resolve on party sworn in,0.8,false,,false
-291,SENATESD-26-D,86389115052067666308833614697375937520184991957339549436311535523133704658550,same,Kalshi YES label 'Julian Beaudion' but rules resolve on party sworn in,0.8,false,,false
-290,SENATESC-26-R,19415336508585369284423077332089322941952840359042766945370653639026871631329,same,Kalshi YES label 'Darline Graham' but rules resolve on party sworn in,0.8,false,,false
-289,SENATESC-26-D,36878701294622385303754057696699259232286823129835461549488433242784556609070,same,Kalshi YES label 'Annie Andrews' but rules resolve on party sworn in,0.8,false,,false
-288,SENATEOR-26-R,29372963211605123864010779732442332283182456440166524936806508786518484983784,same,Kalshi YES label 'David Brock Smith' but rules resolve on party sworn in,0.8,false,,false
-287,SENATEOR-26-D,39061967893309111436785551971694628277240985905229982728692930838050590183253,same,Kalshi YES label 'Jeff Merkley' but rules resolve on party sworn in,0.8,false,,false
-286,SENATEOK-26-R,87984610986203835181744307494384775853082934048738616809370802137328720672555,same,Kalshi YES label 'Kevin Hern' but rules resolve on party sworn in,0.8,false,,false
-285,SENATENM-26-R,50833927425013742586235369308251713607825467476817159455590873772826316462616,same,Kalshi YES label 'Larry E. Marker' but rules resolve on party sworn in,0.8,false,,false
-284,SENATENM-26-D,19382258711208071791808114067884394683151059595826582226310657669291779774276,same,Kalshi YES label 'Ben Ray Luján' but rules resolve on party sworn in,0.8,false,,false
-283,SENATENJ-26-R,40998204559234038191997907383655191921411495956000686691445327807225972314049,same,Kalshi YES label 'Justin Murphy' but rules resolve on party sworn in,0.8,false,,false
-282,SENATENJ-26-D,7677974549798441961236580116388288696687878955556487654297603529125375275637,same,Kalshi YES label 'Cory Booker' but rules resolve on party sworn in,0.8,false,,false
-281,SENATENE-26-R,61406058438415950779483989122479310768072285644599546311211866758610927324521,same,Kalshi YES label 'Pete Ricketts' but rules resolve on party sworn in,0.8,false,,false
-280,SENATENE-26-DOSB,92675179933366654867447126671423837717627190502182140795999849947284842288159,same,"Kalshi SENATENE-26-DOSB is candidate-specific (Dan Osborn sworn in), SIG is any Independent",0.65,false,,false
-279,SENATENE-26-D,10409969596153736009451774783703202392762720997121029504006714556341636000261,same,Kalshi YES label 'Cindy Burbank' but rules resolve on party sworn in,0.8,false,,false
-278,SENATENC-26-R,106237810640779958452537049870874029698681980824806800515963887199272562837477,same,Kalshi YES label 'Michael Whatley' but rules resolve on party sworn in,0.8,true,A,false
-277,SENATENC-26-D,75745094375524270446035684599498879432519268470274158187530806950572645638766,same,Kalshi YES label 'Roy Cooper' but rules resolve on party sworn in,0.8,true,A,false
-276,SENATEMT-26-IND,84340654818268227201270829515662545564535742753659833045084871652496884277807,same,"Kalshi SENATEMT-26-IND is candidate-specific (Seth Bodnar sworn in), SIG is any Independent",0.65,false,,false
-275,SENATEMT-26-R,79590444989411093210940939240176486273588607691124169847899704137059978297379,same,Kalshi YES label 'Kurt Alme' but rules resolve on party sworn in,0.8,false,,false
-274,SENATEMT-26-D,5347927708564596277152237992853544331067082389396950570366105113556124265958,same,Kalshi YES label 'Alani Bankhead' but rules resolve on party sworn in,0.8,false,,false
-273,SENATEMS-26-R,43738477141101590215056217056969608374756779563696645526349857390566870147364,same,Kalshi YES label 'Cindy Hyde-Smith' but rules resolve on party sworn in,0.8,false,,false
-272,SENATEMS-26-D,68480239794038361406143076899055856619190312116315511680595576676848260383579,same,Kalshi YES label 'Scott Colom' but rules resolve on party sworn in,0.8,false,,false
-271,SENATEME-26-R,76508947086962160438405935200125199985011670245759039919125612129807421163383,same,Kalshi YES label 'Susan Collins' but rules resolve on party sworn in,0.8,false,,false
-270,SENATEME-26-D,48575655245476347821154118117401480190008709979587511848606007824155974986339,same,Kalshi YES label 'Troy Jackson' but rules resolve on party sworn in,0.8,false,,false
-269,KXSENATELA-26NOV-R,60046643913696078978258770638664660599769974920748975021262601907475665017825,same,Kalshi YES label 'Julia Letlow' but rules resolve on party sworn in,0.8,false,,false
-268,KXSENATELA-26NOV-D,113137624964926268585589785670631416507830550735458719802369252044201032949357,same,Kalshi YES label 'Jamie Davis' but rules resolve on party sworn in,0.8,false,,false
-267,SENATELA-26-R,12598022503116809195563033037692293444668666368663835684502228496125609568149,same,Kalshi YES label 'Andy Barr' but rules resolve on party sworn in,0.8,false,,false
-266,SENATELA-26-D,92135384965904991509310221180450749977918144194214948401037138387071762157764,same,Kalshi YES label 'Charles Booker' but rules resolve on party sworn in,0.8,false,,false
-265,SENATEIL-26-R,56765588204201084977296214813794816397795777146174349891684399699640242192062,same,Kalshi YES label 'Don Tracy' but rules resolve on party sworn in,0.8,false,,false
-264,SENATEIL-26-D,111232940125638440445053485973783855640462352939983239237000414365099205583774,same,Kalshi YES label 'Juliana Stratton' but rules resolve on party sworn in,0.8,false,,false
-263,SENATEID-26-R,65314805253774944680915550790237892242718931033782892229319718700515564096413,same,Kalshi YES label 'Jim Risch' but rules resolve on party sworn in,0.8,false,,false
-262,SENATEID-26-D,26969987183147691459735958550527481658991321979903347263530424157323143990437,same,Kalshi YES label 'David Roth' but rules resolve on party sworn in,0.8,false,,false
-261,SENATEIA-26-R,66644441732380993264451138936610737214865095373245516415789528831055541050905,same,Kalshi YES label 'Ashley Hinson' but rules resolve on party sworn in,0.8,false,,false
-260,SENATEIA-26-D,8048351788752330183322061643810141972057338023610076786014800830710597129383,same,Kalshi YES label 'Josh Turek' but rules resolve on party sworn in,0.8,false,,false
-259,SENATEGA-26-R,80736122680740812449013332323553886266605781820477134889276974979087127011710,same,Kalshi YES label 'Mike Collins' but rules resolve on party sworn in,0.8,false,,false
-258,SENATEGA-26-D,83773235148053951450619016789202944243863779932529937041963572165331009667720,same,Kalshi YES label 'Jon Ossoff' but rules resolve on party sworn in,0.8,false,,false
-257,SENATECO-26-R,107167253247959681278635375532372161757968896031306223139791203775393777541826,same,Kalshi YES label 'Mark Baisley' but rules resolve on party sworn in,0.8,false,,false
-256,SENATECO-26-D,42054745971068585992552468258190420739050887060024171675730958443343389309662,same,Kalshi YES label 'John Hickenlooper' but rules resolve on party sworn in,0.8,false,,false
-255,SENATEAR-26-R,78854178952124918741549812936343463417915677808825194681039697503851023231561,same,Kalshi YES label 'Tom Cotton' but rules resolve on party sworn in,0.8,false,,false
-254,SENATEAR-26-D,72886985091553225261880008335633731330398834377716296897321179753246165638738,same,Kalshi YES label 'Hallie Shoffner' but rules resolve on party sworn in,0.8,false,,false
-253,SENATEAL-26-R,98167473855206386421177835312752579070697429313088163059089397490523503912323,same,Kalshi YES label 'Barry Moore' but rules resolve on party sworn in,0.8,false,,false
-252,SENATEAL-26-D,112631815696760308015879207569232436560894777106252894238120648921534834095752,same,Kalshi YES label 'Everett Wess' but rules resolve on party sworn in,0.8,false,,false
-251,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 07 House 2026' returned no confident title match,0.0,false,,false
-250,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 02 House 2026' returned no confident title match,0.0,false,,false
-249,,,,no Kalshi party-level series identified for this race; Polymarket search 'Virginia 01 House 2026' returned no confident title match,0.0,false,,false
-248,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 28 House 2026' returned no confident title match,0.0,false,,false
-247,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 28 House 2026' returned no confident title match,0.0,false,,false
-246,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 23 House 2026' returned no confident title match,0.0,false,,false
-245,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 23 House 2026' returned no confident title match,0.0,false,,false
-244,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 15 House 2026' returned no confident title match,0.0,false,,false
-243,,,,no Kalshi party-level series identified for this race; Polymarket search 'Texas 15 House 2026' returned no confident title match,0.0,false,,false
-242,,,,no Kalshi party-level series identified for this race; Polymarket search 'South Carolina 01 House 2026' returned no confident title match,0.0,false,,false
-241,,,,no Kalshi party-level series identified for this race; Polymarket search 'South Carolina 01 House 2026' returned no confident title match,0.0,false,,false
-240,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-pennsylvania,0.0,false,,false
-239,,99792638463439997030947266719544781707346337681332855088686067934064660371880,same,no Kalshi party-level series identified for this race,0.35,false,,false
-238,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 08 House 2026' returned no confident title match,0.0,false,,false
-237,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 08 House 2026' returned no confident title match,0.0,false,,false
-236,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 07 House 2026' returned no confident title match,0.0,false,,false
-235,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 07 House 2026' returned no confident title match,0.0,false,,false
-234,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 01 House 2026' returned no confident title match,0.0,false,,false
-233,,,,no Kalshi party-level series identified for this race; Polymarket search 'Pennsylvania 01 House 2026' returned no confident title match,0.0,false,,false
-232,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-new-york,0.0,false,,false
-231,,95330555834005427520846426202905547771195003113204988843153997638396628348995,same,no Kalshi party-level series identified for this race,0.35,false,,false
-230,,,,no Kalshi party-level series identified for this race; Polymarket search 'New York 13 House 2026' returned no confident title match,0.0,false,,false
-229,,,,no Kalshi party-level series identified for this race; Polymarket search 'New York 13 House 2026' returned no confident title match,0.0,false,,false
-228,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Jersey 07 House 2026' returned no confident title match,0.0,false,,false
-227,,,,no Kalshi party-level series identified for this race; Polymarket search 'New Jersey 07 House 2026' returned no confident title match,0.0,false,,false
-226,,,,no Kalshi party-level series identified for this race; Polymarket search 'Nebraska 02 House 2026' returned no confident title match,0.0,false,,false
-225,,,,no Kalshi party-level series identified for this race; Polymarket search 'Nebraska 02 House 2026' returned no confident title match,0.0,false,,false
-224,,,,no Kalshi party-level series identified for this race; Polymarket search 'Montana 01 House 2026' returned no confident title match,0.0,false,,false
-223,,,,no Kalshi party-level series identified for this race; Polymarket search 'Montana 01 House 2026' returned no confident title match,0.0,false,,false
-222,,,,no Kalshi party-level series identified for this race; Polymarket search 'Maine 02 House 2026' returned no confident title match,0.0,false,,false
-221,,,,no Kalshi party-level series identified for this race; Polymarket search 'Maine 02 House 2026' returned no confident title match,0.0,false,,false
-220,,,,no Kalshi party-level series identified for this race; Polymarket search 'Kentucky 04 House 2026' returned no confident title match,0.0,false,,false
-219,,,,no Kalshi party-level series identified for this race; Polymarket search 'Kentucky 04 House 2026' returned no confident title match,0.0,false,,false
-218,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 03 House 2026' returned no confident title match,0.0,false,,false
-217,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 03 House 2026' returned no confident title match,0.0,false,,false
-216,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 02 House 2026' returned no confident title match,0.0,false,,false
-215,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 02 House 2026' returned no confident title match,0.0,false,,false
-214,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 01 House 2026' returned no confident title match,0.0,false,,false
-213,,,,no Kalshi party-level series identified for this race; Polymarket search 'Iowa 01 House 2026' returned no confident title match,0.0,false,,false
-212,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 13 House 2026' returned no confident title match,0.0,false,,false
-211,,,,no Kalshi party-level series identified for this race; Polymarket search 'Florida 09 House 2026' returned no confident title match,0.0,false,,false
-210,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 08 House 2026' returned no confident title match,0.0,false,,false
-209,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 08 House 2026' returned no confident title match,0.0,false,,false
-208,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 04 House 2026' returned no confident title match,0.0,false,,false
-207,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 04 House 2026' returned no confident title match,0.0,false,,false
-206,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 03 House 2026' returned no confident title match,0.0,false,,false
-205,,,,no Kalshi party-level series identified for this race; Polymarket search 'Colorado 03 House 2026' returned no confident title match,0.0,false,,false
-204,,,,no Kalshi party-level series identified for this race; Polymarket event how-many-house-seats-will-the-democrats-win-in-california,0.0,false,,false
-203,,44058424764964714248558165603691845222162264208032151886857602264638090490908,same,no Kalshi party-level series identified for this race,0.35,false,,false
-202,,,,no Kalshi party-level series identified for this race; Polymarket search 'California 22 House 2026' returned no confident title match,0.0,false,,false
-201,,,,no Kalshi party-level series identified for this race; Polymarket search 'California 22 House 2026' returned no confident title match,0.0,false,,false
-200,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 06 House 2026' returned no confident title match,0.0,false,,false
-199,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 06 House 2026' returned no confident title match,0.0,false,,false
-198,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 01 House 2026' returned no confident title match,0.0,false,,false
-197,,,,no Kalshi party-level series identified for this race; Polymarket search 'Arizona 01 House 2026' returned no confident title match,0.0,false,,false
-196,GOVPARTYTX-26-R,38601260482570384968710837880306414330361708836762827643277699212874441917745,same,,0.8,false,,false
-195,GOVPARTYTX-26-D,94288714604163574102049252490824493204211229391717289463753112166641141429805,same,,0.8,false,,false
+297,SENATEWV-26-R,103563721501446582736235672026641229118201717908465299005521462931975944512517,same,Kalshi YES label 'Shelley Moore Capito' but rules resolve on party sworn in,0.8,false,,false
+296,SENATEWV-26-D,110692470670299760609405767524469998656804613573367102042492015567399413436772,same,Kalshi YES label 'Rachel Fetty Anderson' but rules resolve on party sworn in,0.8,false,,false
+295,SENATEVA-26-D,103672405579571940023321290271521195736672061427193452636021280058761450574865,same,Kalshi YES label 'Mark Warner' but rules resolve on party sworn in,0.8,false,,false
+294,SENATETX-26-R,21265207456609426291246075480390336499088453711419597084147957999650569091884,same,Kalshi YES label 'Ken Paxton' but rules resolve on party sworn in,0.8,true,A,false
+293,SENATETX-26-D,15290572385458522370285732869432740297199321382471116558439914335588167718663,same,Kalshi YES label 'James Talarico' but rules resolve on party sworn in,0.8,true,A,false
+292,SENATESD-26-R,90757273431062483956880101601137522271949785755347720675502304224330457712154,same,Kalshi YES label 'Mike Rounds' but rules resolve on party sworn in,0.8,false,,false
+291,SENATESD-26-D,67967023811721834738685695249992484419619114809767608640505747182577663027691,same,Kalshi YES label 'Julian Beaudion' but rules resolve on party sworn in,0.8,false,,false
+290,SENATESC-26-R,84368524152268016512433556151474175385160499638069024812438264090070245734708,same,Kalshi YES label 'Darline Graham' but rules resolve on party sworn in,0.8,false,,false
+289,SENATESC-26-D,30718966535311015751929217398361750334834655110246828806892843311659716192347,same,Kalshi YES label 'Annie Andrews' but rules resolve on party sworn in,0.8,false,,false
+288,SENATEOR-26-R,79489800771199803792838465972773376352837733018768490302999836500381020065853,same,Kalshi YES label 'David Brock Smith' but rules resolve on party sworn in,0.8,false,,false
+287,SENATEOR-26-D,2092757373218904768373533040846280132805161861393140519418262456097465213332,same,Kalshi YES label 'Jeff Merkley' but rules resolve on party sworn in,0.8,false,,false
+286,SENATEOK-26-R,83554519035704522672644117478876258278018394754028161940314277335853541553559,same,Kalshi YES label 'Kevin Hern' but rules resolve on party sworn in,0.8,false,,false
+285,SENATENM-26-R,47410821361368319377218522333433306313753572972827491807608363074924233552004,same,Kalshi YES label 'Larry E. Marker' but rules resolve on party sworn in,0.8,false,,false
+284,SENATENM-26-D,86827974851753312617441915824618617861250657564707166327567168877893121374182,same,Kalshi YES label 'Ben Ray Luján' but rules resolve on party sworn in,0.8,false,,false
+283,SENATENJ-26-R,80469582416211324277551196813384851504222711072116234686695188046152640511225,same,Kalshi YES label 'Justin Murphy' but rules resolve on party sworn in,0.8,false,,false
+282,SENATENJ-26-D,57191420250913616150846676905047388827581537310894242160546701872955141155912,same,Kalshi YES label 'Cory Booker' but rules resolve on party sworn in,0.8,false,,false
+281,SENATENE-26-R,92576281548134350814800877416860562553699794074017301653635964206220838638047,same,Kalshi YES label 'Pete Ricketts' but rules resolve on party sworn in,0.8,false,,false
+280,SENATENE-26-DOSB,47975366268282823322598946778919483335780002591367838795894307024076579116518,same,"Kalshi SENATENE-26-DOSB is candidate-specific (Dan Osborn sworn in), SIG is any Independent",0.65,false,,false
+279,SENATENE-26-D,55269299240433422758148290868724152324629587438760275683104577693660207425448,same,Kalshi YES label 'Cindy Burbank' but rules resolve on party sworn in,0.8,false,,false
+278,SENATENC-26-R,62831517509825405761763142539845746280269675872170259538293560849475982647892,same,Kalshi YES label 'Michael Whatley' but rules resolve on party sworn in,0.8,true,A,false
+277,SENATENC-26-D,107151098936186723859677628536733880558851060002514795735761427447010628440047,same,Kalshi YES label 'Roy Cooper' but rules resolve on party sworn in,0.8,true,A,false
+276,SENATEMT-26-IND,29340710087203628054916881063653310634997647642374537159652441277893390730162,same,"Kalshi SENATEMT-26-IND is candidate-specific (Seth Bodnar sworn in), SIG is any Independent",0.65,false,,false
+275,SENATEMT-26-R,102325039069045369431277041414667266705633344716966967751024692805337688459829,same,Kalshi YES label 'Kurt Alme' but rules resolve on party sworn in,0.8,false,,false
+274,SENATEMT-26-D,88799262678230165893255813616837100962595819984760588859765042402182443138810,same,Kalshi YES label 'Alani Bankhead' but rules resolve on party sworn in,0.8,false,,false
+273,SENATEMS-26-R,36589074670521348842786325911391532620430247097981345860356484520500173888573,same,Kalshi YES label 'Cindy Hyde-Smith' but rules resolve on party sworn in,0.8,false,,false
+272,SENATEMS-26-D,77001639760095266374534198365421436593389036687975321536722226607654949914567,same,Kalshi YES label 'Scott Colom' but rules resolve on party sworn in,0.8,false,,false
+271,SENATEME-26-R,2142948285506077695096498341598672159464223074468931276310105532825810210121,same,Kalshi YES label 'Susan Collins' but rules resolve on party sworn in,0.8,false,,false
+270,SENATEME-26-D,7589880081658059374445882095611024032084645048848237404312287942463647821549,same,Kalshi YES label 'Troy Jackson' but rules resolve on party sworn in,0.8,false,,false
+269,KXSENATELA-26NOV-R,79597156840177168343562124064866301094619106642263695929345529947536386203124,same,Kalshi YES label 'Julia Letlow' but rules resolve on party sworn in,0.8,false,,false
+268,KXSENATELA-26NOV-D,80536528552003281640741026890878925456783654983296822683495274364289350034456,same,Kalshi YES label 'Jamie Davis' but rules resolve on party sworn in,0.8,false,,false
+267,SENATELA-26-R,48498511771232100148522166869811267217315069499419645745771730197179043728388,same,Kalshi YES label 'Andy Barr' but rules resolve on party sworn in,0.8,false,,false
+266,SENATELA-26-D,37649267567982889592011384409533519112993266261975620703097847510820818713285,same,Kalshi YES label 'Charles Booker' but rules resolve on party sworn in,0.8,false,,false
+265,SENATEIL-26-R,28293677056280080359554222049156424637171556977737746792223933800049748849083,same,Kalshi YES label 'Don Tracy' but rules resolve on party sworn in,0.8,false,,false
+264,SENATEIL-26-D,3015477455071606958014729552697672689898195807324746948280693702257424620276,same,Kalshi YES label 'Juliana Stratton' but rules resolve on party sworn in,0.8,false,,false
+263,SENATEID-26-R,6756779810577885828704276397389282544084821591107025125954859235939281991675,same,Kalshi YES label 'Jim Risch' but rules resolve on party sworn in,0.8,false,,false
+262,SENATEID-26-D,106941193163110167696426338043140728938381127310653153528096347878604033727123,same,Kalshi YES label 'David Roth' but rules resolve on party sworn in,0.8,false,,false
+261,SENATEIA-26-R,107844449523890311740907586041395758413047559802389895859202256336422357556837,same,Kalshi YES label 'Ashley Hinson' but rules resolve on party sworn in,0.8,false,,false
+260,SENATEIA-26-D,90689690530039118737607894922148077480097700217322320781526913496162509181445,same,Kalshi YES label 'Josh Turek' but rules resolve on party sworn in,0.8,false,,false
+259,SENATEGA-26-R,43777191461245536274027792855557351629362906569064322165760098912770293918104,same,Kalshi YES label 'Mike Collins' but rules resolve on party sworn in,0.8,false,,false
+258,SENATEGA-26-D,21024219148268989748704207701411444044468128261642675917026452687231462203167,same,Kalshi YES label 'Jon Ossoff' but rules resolve on party sworn in,0.8,false,,false
+257,SENATECO-26-R,94387913280398317052582281843978069916338462525042652614881277797162415545237,same,Kalshi YES label 'Mark Baisley' but rules resolve on party sworn in,0.8,false,,false
+256,SENATECO-26-D,68194463917260305435439145066031544476540679280823247532132832363696000101185,same,Kalshi YES label 'John Hickenlooper' but rules resolve on party sworn in,0.8,false,,false
+255,SENATEAR-26-R,48125407658537781630126353551882211313520827583468729408685633955919030034320,same,Kalshi YES label 'Tom Cotton' but rules resolve on party sworn in,0.8,false,,false
+254,SENATEAR-26-D,68370995073141964079913803663665941780115677360430806954011390499916208708512,same,Kalshi YES label 'Hallie Shoffner' but rules resolve on party sworn in,0.8,false,,false
+253,SENATEAL-26-R,95119856323193627993348587708417756152568014985721929036628780323821873817569,same,Kalshi YES label 'Barry Moore' but rules resolve on party sworn in,0.8,false,,false
+252,SENATEAL-26-D,77232568388576878990477542833081311975859328857370439688711702313039178600550,same,Kalshi YES label 'Everett Wess' but rules resolve on party sworn in,0.8,false,,false
+251,,98075623222143547346037366837071572541450376316433615657989340175250414958486,,no Kalshi party-level series identified for this race,0.0,false,,false
+250,,10986108013063722112541718847525294234187960385441756998469502203421948473299,,no Kalshi party-level series identified for this race,0.0,false,,false
+249,,19527325130044660074684336011478717458899906478875219180396447156299505391740,,no Kalshi party-level series identified for this race,0.0,false,,false
+248,,102134576754598286649546885868416989707545637875943269439533353198498871476278,,no Kalshi party-level series identified for this race,0.0,false,,false
+247,,84241107374483193244606511118129186494443849681135554558545774792234903960353,,no Kalshi party-level series identified for this race,0.0,false,,false
+246,,55410211684588113064622608223269234944992958173935625527924582089831994856267,,no Kalshi party-level series identified for this race,0.0,false,,false
+245,,61226688777298855109760287075145560866932162430262148603800321887784593630496,,no Kalshi party-level series identified for this race,0.0,false,,false
+244,,288881405005644701938669382130096221659404307173045178355284864479406728774,,no Kalshi party-level series identified for this race,0.0,false,,false
+243,,6584875983046678011286869107197719818123093254495444235544680527373303971994,,no Kalshi party-level series identified for this race,0.0,false,,false
+242,,9923678446010680223075564519648906123468834936314053947915034634742964733395,,no Kalshi party-level series identified for this race,0.0,false,,false
+241,,85565449085981219626125045806096417728054675797071084365546294832037886206869,,no Kalshi party-level series identified for this race,0.0,false,,false
+240,,103572160941197360900419917573086716527751112441366358755475598989264153655130,,no Kalshi party-level series identified for this race,0.0,false,,false
+239,,87725551185270618291722253233951821932371187994043126950008311468794742299797,same,no Kalshi party-level series identified for this race,0.35,false,,false
+238,,57072421827554294140721361338343029545070199210958375988932007732626623305617,,no Kalshi party-level series identified for this race,0.0,false,,false
+237,,91391435832155617612019982139435697661029161851437556799916148343508709382987,,no Kalshi party-level series identified for this race,0.0,false,,false
+236,,56412855186822728853119072474894085602768054645914780515455268260878947887549,,no Kalshi party-level series identified for this race,0.0,false,,false
+235,,37713776886536763857380242322222367371582682723176215910322979366716585040762,,no Kalshi party-level series identified for this race,0.0,false,,false
+234,,108230243496498344855407302843123554399616537057761543327780472018667198839068,,no Kalshi party-level series identified for this race,0.0,false,,false
+233,,90438836256571410927299008367228796312209722771624666597034907143954367060240,,no Kalshi party-level series identified for this race,0.0,false,,false
+232,,100483443247041044563874634953278400972311005965822139457018312114391318359850,,no Kalshi party-level series identified for this race,0.0,false,,false
+231,,51139697479054469944236132595348770797766976112763062697989474877845630491882,same,no Kalshi party-level series identified for this race,0.35,false,,false
+230,,81557957224614719909606514321678071196063005584137638675672000952860345431216,,no Kalshi party-level series identified for this race,0.0,false,,false
+229,,58170582826434624369183137827470621458750832571934268895241793899476487858088,,no Kalshi party-level series identified for this race,0.0,false,,false
+228,,89007958027779859965143280233607680085743023530197549682171151954048549979817,,no Kalshi party-level series identified for this race,0.0,false,,false
+227,,11150104041135923402729603235169264788695551846877266424704836556138704136153,,no Kalshi party-level series identified for this race,0.0,false,,false
+226,,9261962954796206285247745021195981577055668829876152281558354142057545087402,,no Kalshi party-level series identified for this race,0.0,false,,false
+225,,83966667308824872880342632752673759552233526664290166226784097408878282862076,,no Kalshi party-level series identified for this race,0.0,false,,false
+224,,70720420928389492978842914190430712299346582376255109200751838945374631181994,,no Kalshi party-level series identified for this race,0.0,false,,false
+223,,94033987553817825990709512567031751048276730850154145976615728913102874968691,,no Kalshi party-level series identified for this race,0.0,false,,false
+222,,58199720710299853890561431207407462985075458766612922964054758657487509750362,,no Kalshi party-level series identified for this race,0.0,false,,false
+221,,96914958250546616618098909674490573266030506817741031776466109480920768219053,,no Kalshi party-level series identified for this race,0.0,false,,false
+220,,4360584608318889792359076982751499707146205412289783849766659973245585132129,,no Kalshi party-level series identified for this race,0.0,false,,false
+219,,42051548638421204218374584975934315188715230248988738148555343950810939155465,,no Kalshi party-level series identified for this race,0.0,false,,false
+218,,57265565746838221378365038901649729198937414663367899972498812653529682469258,,no Kalshi party-level series identified for this race,0.0,false,,false
+217,,105724155866026243386456609196248574198788679514540436663740641053049222730942,,no Kalshi party-level series identified for this race,0.0,false,,false
+216,,106183024660666533834062502031813793169247762855988914383541855843680035368680,,no Kalshi party-level series identified for this race,0.0,false,,false
+215,,24808423328362642269928339618535398875519836942812329525201323299850907438220,,no Kalshi party-level series identified for this race,0.0,false,,false
+214,,81505692847657373092454383020575585110499837274340613322588228385158919526454,,no Kalshi party-level series identified for this race,0.0,false,,false
+213,,70626084342654528512319514273738308837103071303735022481383733918592331109261,,no Kalshi party-level series identified for this race,0.0,false,,false
+212,,93455992331247261582609314876051620484985877396129230715122967612916153735084,,no Kalshi party-level series identified for this race,0.0,false,,false
+211,,79995747672792115054716674475173589172446551682399210610955904338812431765392,,no Kalshi party-level series identified for this race,0.0,false,,false
+210,,68021205636604056509276509067526372089338487160185591169779941190006739682906,,no Kalshi party-level series identified for this race,0.0,false,,false
+209,,111540362553565728751187438925859908575427409891112173540802616759607897153785,,no Kalshi party-level series identified for this race,0.0,false,,false
+208,,93912560256245525429984546771927493927155759286650495356669416323669943507847,,no Kalshi party-level series identified for this race,0.0,false,,false
+207,,21114904170244249083059864962815455303156569744726868991298626905734505722454,,no Kalshi party-level series identified for this race,0.0,false,,false
+206,,50051241364929222895693566081605692346197807854055532008099278772035698770870,,no Kalshi party-level series identified for this race,0.0,false,,false
+205,,24395104702642353411948925889097630568855366590528757185881735998149149192479,,no Kalshi party-level series identified for this race,0.0,false,,false
+204,,74883630455715593214751459772360468028930271344780030243472846680635150664331,,no Kalshi party-level series identified for this race,0.0,false,,false
+203,,59802490472036913873496121286677427483662122509187681183126522612013504797043,same,no Kalshi party-level series identified for this race,0.35,false,,false
+202,,83305180123434328264942831061332161630642073183329159190029603770999556008804,,no Kalshi party-level series identified for this race,0.0,false,,false
+201,,14880392203916951367210594044346675783187280368615720213876603794661640957466,,no Kalshi party-level series identified for this race,0.0,false,,false
+200,,91134056361940201893494305153220998213627095877115808251230716593928688430751,,no Kalshi party-level series identified for this race,0.0,false,,false
+199,,92489819804290368443943803966220296254525527906989333620579684623025259387169,,no Kalshi party-level series identified for this race,0.0,false,,false
+198,,32591940863680290675071972744258239275874735179355360323845750782366119048535,,no Kalshi party-level series identified for this race,0.0,false,,false
+197,,67501795419284092111663134279812910460154992630407078593989658098590262577673,,no Kalshi party-level series identified for this race,0.0,false,,false
+196,GOVPARTYTX-26-R,54743173400191373818547682740700297683169841200363505623023527116388816282328,same,,0.8,false,,false
+195,GOVPARTYTX-26-D,48232987449750988261789196083999659380058157021032932634331257492238853387252,same,,0.8,false,,false
 194,GOVPARTYSD-26-D,19857809653204352084235953967001149759321806996646353766198011041287290557051,same,,0.8,false,,false
 193,GOVPARTYSC-26-R,115258259561547414610995893322363332894307320697384633557391293684664191320185,same,,0.8,false,,false
 192,GOVPARTYSC-26-D,69673263487139231624315897585768201230841320475352635832819992690850228911127,same,,0.8,false,,false
@@ -201,10 +201,10 @@ platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,veri
 188,GOVPARTYOR-26-R,60638893393471159707288518099941698438888451383700859041754575565737488871199,same,,0.8,false,,false
 187,GOVPARTYOR-26-D,9755787435930070640870536823763281543938387827225853124824813626465365556107,same,,0.8,false,,false
 186,GOVPARTYOK-26-D,37700214927702560862325287464231700075479667077774217635210792305464305010407,same,,0.8,false,,false
-185,GOVPARTYNY-26-R,,same,Polymarket event new-york-governor-election-nassau-county-winner,0.45,false,,false
-184,GOVPARTYNY-26-D,,same,Polymarket event new-york-governor-election-nassau-county-winner,0.45,false,,false
-183,GOVPARTYNV-26-R,36534533573603875737529658378786753655446938295215562076681496438632129950514,same,,0.8,true,A,false
-182,GOVPARTYNV-26-D,44694192324739996801085001666176025418617008106673832257198165276523684865671,same,,0.8,true,A,false
+185,GOVPARTYNY-26-R,108106288970534575307495623455701128869187166289634633189375113923142364674394,same,,0.45,false,,false
+184,GOVPARTYNY-26-D,64050273355694113671090110638685043795558853994186493795797238541534244584786,same,,0.45,false,,false
+183,GOVPARTYNV-26-R,26514162544090965098284473937422427465088569867873952479707540387314217381282,same,,0.8,true,A,false
+182,GOVPARTYNV-26-D,1246864710804983890692377994891598401616546411512113588399830364959833951829,same,,0.8,true,A,false
 181,GOVPARTYNM-26-R,66486026915087812107390926299428531209332603871609345502520740675575639289776,same,,0.8,false,,false
 180,GOVPARTYNM-26-D,17781069937970314001472355582427331102577624490515546410398313363226785264562,same,,0.8,false,,false
 179,GOVPARTYNE-26-R,73030731922944118546035998309915164095890033874433358499266850532352206183824,same,,0.8,false,,false
@@ -219,13 +219,13 @@ platform_id,kalshi_ticker,poly_token_id,polarity,rule_diff_notes,confidence,veri
 170,GOVPARTYID-26-D,33422454484664318134839474897555797731651253833609657227452504228201243908837,same,,0.8,false,,false
 169,GOVPARTYIA-26-R,35744753605838865227961720864928711626409257515092566128191701940968999011763,same,,0.8,false,,false
 168,GOVPARTYIA-26-D,45621938709469399887344165091123819127263258871102896783851049824656362940868,same,,0.8,false,,false
-167,GOVPARTYGA-26-R,97156142625997509825047113797885384709699448119366610735530801446868735350645,same,,0.8,false,,false
-166,GOVPARTYGA-26-D,96459370811670786126734211788927519220910942757255465176009600889740363230698,same,,0.8,false,,false
+167,GOVPARTYGA-26-R,17555504943162344098534978138053308162738914357892515623100381936995379845407,same,,0.8,false,,false
+166,GOVPARTYGA-26-D,59980150909931986777748227027020522224275707387562276219060223816867188565245,same,,0.8,false,,false
 165,GOVPARTYCT-26-R,28222949582692352334110457056784683609708218641745397767642367585928375878193,same,,0.8,false,,false
 164,GOVPARTYCO-26-R,17546916569546560082654809047780534438941220653259855302022567325162996913878,same,,0.8,false,,false
 163,GOVPARTYCO-26-D,13561110222018578357785114619723468880952494576477687978085608584743809891728,same,,0.8,false,,false
-162,GOVPARTYCA-26-R,,same,Polymarket search 'California Governor 2026' returned no confident title match,0.45,false,,false
-161,GOVPARTYCA-26-D,,same,Polymarket search 'California Governor 2026' returned no confident title match,0.45,false,,false
+162,GOVPARTYCA-26-R,,same,no Polymarket 2026 general market for Governor CA R,0.45,false,,false
+161,GOVPARTYCA-26-D,,same,no Polymarket 2026 general market for Governor CA D,0.45,false,,false
 160,GOVPARTYAZ-26-R,18859933834391393264997730047904836599784455493762567366530805521273388590339,same,,0.8,false,,false
 159,GOVPARTYAZ-26-D,48368039124533504674394545622809320495392482760644292167644042386014017726777,same,,0.8,false,,false
 158,GOVPARTYAR-26-R,102338577209265315381870206199608266895858545057511455426333199851251620807909,same,,0.8,false,,false
