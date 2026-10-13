@@ -19,11 +19,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from predcup.control import TradingControl
 from predcup.risk import Alerter, PositionExposure
-from predcup.store import EventStore
+from predcup.store import EventStore, signed_fill_quantity
 
 _TOLERANCE = 1e-6
 
@@ -32,16 +32,6 @@ _TOLERANCE = 1e-6
 class ReconResult:
     status: str  # "clean" / "mismatch" / "read_failed"
     detail: str = ""
-
-
-def diff_positions(local: dict[str, float], venue: dict[str, float]) -> dict[str, tuple[float, float]]:
-    """exchange_id -> (local, venue) wherever they differ; zero rows ignored."""
-    out = {}
-    for ex in set(local) | set(venue):
-        a, b = local.get(ex, 0.0), venue.get(ex, 0.0)
-        if abs(a - b) > _TOLERANCE:
-            out[ex] = (a, b)
-    return out
 
 
 class Reconciler:
@@ -61,6 +51,7 @@ class Reconciler:
         clock: Callable[[], datetime] | None = None,
         fair_value_of: Callable[[str], float | None] | None = None,
         max_sig_spread: float = 0.05,
+        clock_margin_seconds: float = 2.0,
     ) -> None:
         self._venue = venue
         self._store = store
@@ -76,6 +67,7 @@ class Reconciler:
         self._clock = clock or (lambda: datetime.now(timezone.utc))  # same clock as RiskManager
         self._markout_tasks: set[asyncio.Task] = set()  # kept referenced until done
         self.last_fill_sync_at: datetime | None = None  # PnlFeed's estimate needs recently synced fills
+        self._clock_margin = clock_margin_seconds  # SIG fill timestamps vs our clock (NTP-synced)
         # Markouts: fresh polarity-adjusted Kalshi fair value (SIG YES terms)
         # when there is one, else the SIG mid only if the spread is under
         # max_sig_spread; a hollow book's mid is not a price.
@@ -112,26 +104,57 @@ class Reconciler:
                     self._markout_tasks.add(task)
                     task.add_done_callback(self._markout_tasks.discard)
 
+    def _diffs_as_of_read(
+        self, venue_q: dict[str, float], read_started: datetime, read_ended: datetime
+    ) -> dict[str, tuple[float, float]]:
+        """exchange -> (local, venue) where no prefix of the fills that landed
+        during the positions read explains the venue quantity. `local` is
+        what all fills up to the end of the read add up to."""
+        margin = timedelta(seconds=self._clock_margin)
+        start, end = read_started - margin, read_ended + margin
+        before: dict[str, float] = {}
+        during: dict[str, list] = {}
+        for f in self._store.fills(self._tid):
+            if f.filled_at < start:
+                before[f.exchange_id] = before.get(f.exchange_id, 0.0) + signed_fill_quantity(f)
+            elif f.filled_at <= end:
+                during.setdefault(f.exchange_id, []).append(f)
+        diffs = {}
+        for ex in set(venue_q) | set(before) | set(during):
+            q = before.get(ex, 0.0)
+            reachable = [q]
+            for f in sorted(during.get(ex, []), key=lambda f: f.filled_at):
+                q += signed_fill_quantity(f)
+                reachable.append(q)
+            v = venue_q.get(ex, 0.0)
+            if not any(abs(v - r) <= _TOLERANCE for r in reachable):
+                diffs[ex] = (reachable[-1], v)
+        return diffs
+
     def pending_markouts(self) -> list[asyncio.Task]:
         return [t for t in self._markout_tasks if not t.done()]
 
     async def run_once(self) -> ReconResult:
         swept = self._router.swept_snapshot()  # before the fill sync, see OrderRouter.release_swept
-        # A fill can land between the fill sync and the positions read; that
-        # looks like a mismatch. Sync and compare once more before declaring one.
+        # Positions are compared as of the moment they were read (SIG's
+        # positions read can take ~20 s while fills keep landing): read
+        # positions first, then sync fills, then require each venue quantity
+        # to equal every fill from before the read plus some prefix (in time
+        # order) of the fills that landed during it. Later fills are ignored.
+        # One recheck before declaring a mismatch.
         for attempt in (1, 2):
             try:
-                await self._sync_fills()
-                self.last_fill_sync_at = self._clock()
                 # Taken BEFORE the read: a fill confirmed before this instant
                 # is in these positions (RiskManager.update_positions).
-                positions_as_of = self._clock()
+                positions_as_of = read_started = self._clock()
                 positions = await self._venue.get_positions(self._tid)
+                read_ended = self._clock()
+                await self._sync_fills()
+                self.last_fill_sync_at = self._clock()
             except Exception as e:  # any read failure: not a mismatch, but not clean either
                 return self._read_failed(repr(e)[:300])
             venue_q = {p.exchange_id: float(p.quantity) for p in positions if abs(p.quantity) > _TOLERANCE}
-            local_q = {ex: float(q) for ex, q in self._store.local_positions(self._tid).items() if abs(q) > _TOLERANCE}
-            diffs = diff_positions(local_q, venue_q)
+            diffs = self._diffs_as_of_read(venue_q, read_started, read_ended)
             if not diffs:
                 break
             if attempt == 1:

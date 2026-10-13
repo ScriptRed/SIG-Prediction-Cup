@@ -219,3 +219,72 @@ def test_persistent_mismatch_still_halts_after_the_recheck(tmp_path):
     assert run(rec.run_once()).status == "mismatch"
     assert len(venue.fill_calls) == 2  # synced twice before declaring it
     assert control.halted
+
+
+# --- 2026-10-02 soak with slow portfolio reads (0.2-20 s): positions as of the read ------
+# The 1-hour soak halted on "5011: local 0 vs venue 4": fills kept landing
+# between the (slow) fill sync and the (slow) positions read, so local and
+# venue positions were taken at different moments, on every pass.
+
+from datetime import timedelta  # noqa: E402
+
+
+def make_timed(tmp_path, read_seconds=0.0):
+    """Reconciler with a controllable clock; the positions read takes
+    `read_seconds` and fills in `venue.during_read` land in the middle of it."""
+    clock = {"t": T0 + timedelta(minutes=10)}
+    venue, risk, router, control, alerts = FakeVenue(), FakeRisk(), FakeRouter(), TradingControl(), Alerts()
+    venue.during_read = []
+    store = EventStore(tmp_path / "e.db")
+    inner = venue.get_positions
+
+    async def timed_positions(tid):
+        clock["t"] += timedelta(seconds=read_seconds / 2)
+        venue.fills += venue.during_read  # these fill while the read is in flight
+        venue.during_read = []
+        result = await inner(tid)
+        clock["t"] += timedelta(seconds=read_seconds / 2)
+        return result
+
+    venue.get_positions = timed_positions
+    rec = Reconciler(venue=venue, store=store, risk=risk, router=router, control=control, alerter=alerts,
+                     tournament_id=TID, market_meta=META, shadow=False, clock=lambda: clock["t"])  # fmt: skip
+    return rec, venue, store, risk, control, clock
+
+
+def fill_at(i, qty, at, ex="1077"):
+    return Fill(id=str(i), order_id="", exchange_id=ex, tournament_id=TID, side="yes" if qty > 0 else "no",
+                action="buy", quantity=abs(qty), price=0.5, filled_at=at)  # fmt: skip
+
+
+def test_fill_after_the_positions_read_is_not_a_mismatch(tmp_path):
+    rec, venue, store, risk, control, clock = make_timed(tmp_path)
+    venue.fills = [fill_at(1, 10, T0), fill_at(2, 4, clock["t"] + timedelta(seconds=30))]  # f2 after the read
+    venue.positions = [position(10)]  # the venue read didn't include f2 yet
+    assert run(rec.run_once()).status == "clean" and not control.halted
+
+
+def test_fill_during_the_read_is_fine_either_way(tmp_path):
+    for included in (True, False):
+        d = tmp_path / str(included)
+        d.mkdir()
+        rec, venue, store, risk, control, clock = make_timed(d, read_seconds=18.0)
+        venue.fills = [fill_at(1, 10, T0)]
+        venue.during_read = [fill_at(2, 4, clock["t"] + timedelta(seconds=9))]
+        venue.positions = [position(14 if included else 10)]
+        assert run(rec.run_once()).status == "clean", included
+
+
+def test_a_real_difference_is_still_a_mismatch(tmp_path):
+    rec, venue, store, risk, control, clock = make_timed(tmp_path)
+    venue.fills = [fill_at(1, 10, T0)]
+    venue.positions = [position(12)]
+    assert run(rec.run_once()).status == "mismatch" and control.halted
+
+
+def test_venue_value_no_prefix_of_in_read_fills_explains_is_a_mismatch(tmp_path):
+    rec, venue, store, risk, control, clock = make_timed(tmp_path, read_seconds=18.0)
+    venue.fills = [fill_at(1, 10, T0)]
+    venue.during_read = [fill_at(2, 5, clock["t"] + timedelta(seconds=3)), fill_at(3, 3, clock["t"] + timedelta(seconds=6))]
+    venue.positions = [position(13)]  # 10, 15 or 18 are possible; 13 (skipping the earlier fill) is not
+    assert run(rec.run_once()).status == "mismatch"

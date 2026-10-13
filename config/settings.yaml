@@ -109,6 +109,7 @@ risk:
   stale_data_stop_seconds: 60 # halt quoting if outside data older than this (mirrors fair_value.max_outside_data_age_seconds)
   reconciliation_interval_seconds: 60 # compare local positions vs get_positions() every minute
   reconciliation_max_read_failures: 3 # consecutive failed reconciliation reads before halting (live)
+  reconciliation_clock_margin_seconds: 2 # SIG fill times vs ours: fills this close to the positions read count as 'during' it
   daily_pnl_max_age_seconds: 600 # live: no daily P&L (SIG's or the local estimate) this fresh -> new orders refused
   # Launch size ramp: max_order_size_susqies and max_bankroll_fraction_per_market
   # start at launch_fraction of the values above and multiply by step_multiplier

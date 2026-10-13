@@ -23,7 +23,7 @@ SETTINGS = {
         "max_party_exposure_fraction": 0.25, "max_order_size_susqies": 500,
         "max_price_deviation_from_fair_value": 0.03, "daily_loss_stop_fraction": 0.08,
         "stale_data_stop_seconds": 60, "reconciliation_interval_seconds": 60, "reconciliation_max_read_failures": 3,
-        "daily_pnl_max_age_seconds": 600,
+        "daily_pnl_max_age_seconds": 600, "reconciliation_clock_margin_seconds": 2,
         "size_ramp": {"launch_fraction": 0.1, "step_multiplier": 2.0, "clean_reconciliations_per_step": 45,
                       "rate_limit_max_in_window": 5, "rate_limit_window_seconds": 600},
     },
@@ -242,3 +242,12 @@ def test_loop_error_alert_after_cooldown_reports_suppressed_count(tmp_path):
     assert len(alerts) == 2 and "4 more since the last alert" in alerts[1]
     app._report_loop_error("kalshi_poll", TimeoutError("slow"))  # other loops have their own budget
     assert sum("kalshi_poll loop error" in m for m in app.alerter.messages) == 1
+
+
+def test_reconciler_gets_the_clock_margin_from_config(tmp_path):
+    settings = {**SETTINGS, "risk": {**SETTINGS["risk"], "reconciliation_clock_margin_seconds": 3.5}}
+    store = EventStore(tmp_path / "e.db")
+    app = App(settings=settings, venue=BookVenue(), kalshi=FakeKalshi(), store=store, alerter=Alerts(),
+              tournament_id=TID, bankroll=100_000.0, targets=load_targets(CUP, MAP, manual_only=[]),
+              market_meta={}, fusion_race_keys=frozenset(), clock=lambda: NOW)  # fmt: skip
+    assert app.reconciler._clock_margin == 3.5
