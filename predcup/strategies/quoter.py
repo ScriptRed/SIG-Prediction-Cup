@@ -13,10 +13,14 @@ reject a quote for that. With
 post_only the quote backs off one tick behind the opposite SIG best price
 rather than crossing it.
 
-Each cycle re-quotes only the markets that need it: fair value moved >=
-requote_move, position changed, quotes due for refresh before their short
-expiry, or a market gained or lost its fair value (then it is pulled).
-The OrderRouter cancels each of those markets on its own and posts the
+Each cycle re-quotes only the markets that need it, never every cycle
+(2026-10-13: cancel-all volume drew 429s): fair value moved more than
+requote_move (1 point), position changed, its quotes are within
+requote_before_expiry_seconds of the expiry the router stamped, or a
+market gained or lost its fair value (then it is pulled). They go to the
+router most urgent first (pulls, fills, the biggest moves, the soonest
+expiry, new markets), since its cancel pacing may defer the rest to a
+later cycle. The OrderRouter cancels each market on its own and posts the
 new quotes in one batch. Blackout windows (quoter.pull_quotes_before_events)
 pull everything and post nothing.
 """
@@ -25,7 +29,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from predcup.control import TradingControl
@@ -42,10 +46,10 @@ class QuoterConfig:
     min_edge: float
     uncertainty_coefficient: float  # c
     inventory_skew_coefficient: float  # k, per full max_position_shares
-    requote_move: float  # fair-value move that forces a re-quote
+    requote_move: float  # re-quote when fair value moves more than this
     quote_size: int  # shares per side
-    expiration_seconds: int  # expirationDate on every quote (dead-man's switch)
-    refresh_interval_seconds: int  # re-post before quotes expire
+    expiration_seconds: float  # expirationDate on every quote (dead-man's switch), stamped by the router
+    requote_before_expiry_seconds: float  # re-post once this little is left before expiry
     max_markets: int
     max_position_shares: int
     max_price_deviation: float  # from risk; wider half-spreads mean no quote
@@ -65,10 +69,10 @@ def load_quoter_config(settings: dict) -> QuoterConfig:
         min_edge=float(q["min_edge"]),
         uncertainty_coefficient=float(q["uncertainty_coefficient"]),
         inventory_skew_coefficient=float(q["inventory_skew_coefficient"]),
-        requote_move=int(q["requote_fair_value_move_ticks"]) * TICK,
+        requote_move=float(q["requote_fair_value_move"]),
         quote_size=_whole_shares(q["quote_size_shares"]),
-        expiration_seconds=int(q["quote_expiration_seconds"]),
-        refresh_interval_seconds=int(q["refresh_interval_seconds"]),
+        expiration_seconds=float(q["quote_expiration_seconds"]),
+        requote_before_expiry_seconds=float(q["requote_before_expiry_seconds"]),
         max_markets=int(q["max_markets"]),
         max_position_shares=int(q["max_position_shares"]),
         max_price_deviation=float(settings["risk"]["max_price_deviation_from_fair_value"]),
@@ -78,8 +82,8 @@ def load_quoter_config(settings: dict) -> QuoterConfig:
             for w in q.get("pull_quotes_before_events") or []
         ),
     )
-    if cfg.refresh_interval_seconds >= cfg.expiration_seconds:
-        raise ValueError("quoter.refresh_interval_seconds must be shorter than quote_expiration_seconds")
+    if not 0 < cfg.requote_before_expiry_seconds < cfg.expiration_seconds:
+        raise ValueError("quoter.requote_before_expiry_seconds must be positive and shorter than quote_expiration_seconds")
     return cfg
 
 
@@ -164,6 +168,7 @@ class _Posted:
     fair_value: float
     at: datetime
     position: float
+    expires_at: datetime  # as stamped by the router at send time
 
 
 class Quoter:
@@ -189,17 +194,21 @@ class Quoter:
         self._control = control
         self._posted: dict[str, _Posted] = {}  # markets with our quotes resting
 
-    def _due(self, ex: str, fv: float, position: float, now: datetime) -> str:
+    def _due(self, ex: str, fv: float, position: float, now: datetime) -> tuple | None:
+        """None if the resting quotes are fine, else a sort key: lower is
+        more urgent (rank, then the move or the time left)."""
         posted = self._posted.get(ex)
         if posted is None:
-            return "new"
-        if (now - posted.at).total_seconds() >= self._cfg.refresh_interval_seconds:
-            return "refresh before expiry"
-        if abs(fv - posted.fair_value) >= self._cfg.requote_move - _EPS:
-            return "fair value moved"
+            return (4, 0.0)  # new
         if position != posted.position:
-            return "position changed"
-        return ""
+            return (1, 0.0)  # a fill: the skew changed
+        move = abs(fv - posted.fair_value)
+        if move > self._cfg.requote_move + _EPS:
+            return (2, -move)
+        left = (posted.expires_at - now).total_seconds()
+        if left <= self._cfg.requote_before_expiry_seconds:
+            return (3, left)
+        return None
 
     def _orders(self, t: QuoteTarget, q: TwoSidedQuote, now: datetime) -> list[Order]:
         expiry = now + timedelta(seconds=self._cfg.expiration_seconds)
@@ -217,11 +226,12 @@ class Quoter:
         if not updates:
             return CycleReport(False, markets=len(self._posted), reason="nothing due")
         result = await self._router.requote(updates, now)
-        for ex in result.done:
-            if updates[ex]:
-                self._posted[ex] = state[ex]
+        expires = getattr(result, "expires", {})
+        for ex in result.done:  # deferred / failed markets keep their old state and come back next cycle
+            if updates[ex] and ex in expires:
+                self._posted[ex] = replace(state[ex], expires_at=expires[ex])
             else:
-                self._posted.pop(ex, None)
+                self._posted.pop(ex, None)  # pulled, or swept with nothing resting: quote it afresh
         return CycleReport(True, markets=len(updates), orders=sum(len(v) for v in updates.values()),
                            reason=result.blocked or "requoted")  # fmt: skip
 
@@ -241,20 +251,23 @@ class Quoter:
         books = await self._books([t.exchange_id for t, _ in live]) if live else {}
         positions = self._positions()
 
-        updates: dict[str, list[tuple[Order, FairValue]]] = {}
+        due: list[tuple[tuple, int, str, list[tuple[Order, FairValue]]]] = []
         state: dict[str, _Posted] = {}
         quoted: set[str] = set()
-        for t, fv in live:
+        for i, (t, fv) in enumerate(live):
             position = positions.get(t.exchange_id, 0)
             best_bid, best_ask = books.get(t.exchange_id, (None, None))
             q = compute_quote(fv, position, best_bid, best_ask, self._cfg)
             if q.bid is None and q.ask is None:
                 continue
             quoted.add(t.exchange_id)
-            if self._due(t.exchange_id, fv.value, position, now):  # type: ignore[arg-type]
-                updates[t.exchange_id] = [(o, fv) for o in self._orders(t, q, now)]
-                state[t.exchange_id] = _Posted(fv.value, now, position)  # type: ignore[arg-type]
-        for ex in self._posted:
-            if ex not in quoted:
-                updates[ex] = []  # lost its fair value or quote: pull it
+            urgency = self._due(t.exchange_id, fv.value, position, now)  # type: ignore[arg-type]
+            if urgency is not None:
+                due.append((urgency, i, t.exchange_id, [(o, fv) for o in self._orders(t, q, now)]))
+                expiry = now + timedelta(seconds=self._cfg.expiration_seconds)  # replaced by the router's stamp
+                state[t.exchange_id] = _Posted(fv.value, now, position, expiry)  # type: ignore[arg-type]
+        # Pulls first (lost fair value or quote), then the most urgent.
+        updates: dict[str, list[tuple[Order, FairValue]]] = {ex: [] for ex in self._posted if ex not in quoted}
+        for _, _, ex, orders in sorted(due, key=lambda d: (d[0], d[1])):
+            updates[ex] = orders
         return await self._send(updates, state, now)

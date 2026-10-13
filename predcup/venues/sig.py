@@ -21,6 +21,11 @@ CLAUDE.md rules implemented here:
   min_expiry_margin_seconds) is never sent, and a retry whose identical
   payload would now be expired or too close to expiry is not sent either
   (OrderStatusUnknown: the caller reconciles).
+- Re-quote calls (a cancel-all scoped to one market, a batch) never sit
+  out a wait longer than max_requote_retry_wait_seconds inline: a 429 then
+  raises SigRateLimited (the router pauses re-quotes until Retry-After has
+  passed and re-prices afterwards), a partial 207 is returned as is. The
+  tournament-wide cancel-all (kill switch, shutdown) always waits it out.
 - Every 4xx (429s and failed 4xx items of a 207 included) is reported through
   `on_client_error` with the full response body, error details and the
   request body (predcup.apilog.ClientErrorLog: events_log + journal).
@@ -71,6 +76,16 @@ class SigApiError(Exception):
         self.code = code
         self.message = message
         self.details = details or {}
+
+
+class SigRateLimited(SigApiError):
+    """429 that was not (or could not be) waited out: nothing was placed or
+    cancelled by that request. `retry_after` is the server's Retry-After."""
+
+    def __init__(self, status: int, code: str, message: str, details: dict | None = None,
+                 retry_after: float | None = None) -> None:  # fmt: skip
+        super().__init__(status, code, message, details)
+        self.retry_after = retry_after
 
 
 class SigOrderRejected(SigApiError):
@@ -196,6 +211,7 @@ class SigVenue(Venue):
         on_client_error: ClientErrorObserver | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         min_expiry_margin_seconds: float = 0.0,
+        max_requote_retry_wait_seconds: float | None = None,
     ) -> None:
         # Fail closed: 429s must reach the size ramp.
         if on_rate_limited is None:
@@ -219,6 +235,7 @@ class SigVenue(Venue):
         self._on_client_error = on_client_error
         self._clock = clock
         self._expiry_margin = min_expiry_margin_seconds
+        self._max_requote_wait = max_requote_retry_wait_seconds
         self._summary: dict | None = None  # startDate / initialBalance don't change
 
     # --- plumbing -------------------------------------------------------------
@@ -240,6 +257,7 @@ class SigVenue(Venue):
         unknown_key: str | None = None,
         rejection: type[SigApiError] = SigApiError,
         expires_at: datetime | None = None,
+        max_wait: float | None = None,
     ) -> tuple[httpx.Response, Any]:
         """One logical request with CLAUDE.md's retry rules. The same
         `body` object is re-sent on every attempt (same key, same payload).
@@ -304,13 +322,17 @@ class SigVenue(Venue):
                 return resp, data
             if verdict == "retry_rate_limited":
                 self._on_rate_limited(label, retry_after)
-            if attempt < self._max_retries:
-                await self._sleep(self._backoff(attempt, retry_after))
+            wait = self._backoff(attempt, retry_after) if attempt < self._max_retries else None
+            if wait is not None and (max_wait is None or wait <= max_wait):
+                await self._sleep(wait)
                 continue
+            # Retries exhausted, or a wait longer than this call may sit out.
             if verdict == "unknown":
                 raise OrderStatusUnknown(unknown_key or "")
             if classify is not None and status < 400:
-                return resp, data  # retries exhausted on a partial result: report it as is
+                return resp, data  # a partial result: report it as is
+            if verdict == "retry_rate_limited":
+                raise SigRateLimited(status, code or str(status), message or "rate limited", details, retry_after)
             raise SigApiError(status, code or str(status), message or "retries exhausted", details)
         raise AssertionError("unreachable")  # pragma: no cover
 
@@ -433,7 +455,8 @@ class SigVenue(Venue):
             return None
 
         resp, data = await self._send("POST", "/orders/batch", label="POST /orders/batch", body=body, classify=classify,
-                                      unknown_key=batch_key, rejection=SigOrderRejected, expires_at=expires_at)  # fmt: skip
+                                      unknown_key=batch_key, rejection=SigOrderRejected, expires_at=expires_at,
+                                      max_wait=self._max_requote_wait)  # fmt: skip
         out = []
         for r in data.get("results", []):
             o = orders[r["index"]]
@@ -487,8 +510,11 @@ class SigVenue(Venue):
         def classify(resp: httpx.Response, data: Any) -> str | None:
             return "done" if resp.status_code in (200, 207, 422) else None
 
-        _, data = await self._send("POST", "/orders/cancel-all", label="POST /orders/cancel-all",
-                                   body=body, classify=classify)  # fmt: skip
+        # Scoped = a re-quote (never sits out a long Retry-After); tournament-
+        # wide = the kill switch or shutdown, which must finish.
+        scoped = exchange_id is not None or market_id is not None
+        _, data = await self._send("POST", "/orders/cancel-all", label="POST /orders/cancel-all", body=body,
+                                   classify=classify, max_wait=self._max_requote_wait if scoped else None)  # fmt: skip
         return CancelAllResult(cancelled=int(data.get("cancelled", 0)), remaining=len(data.get("errors") or []))
 
     # --- reads ------------------------------------------------------------------

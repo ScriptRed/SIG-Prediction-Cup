@@ -29,7 +29,7 @@ CFG = QuoterConfig(
     requote_move=0.01,
     quote_size=20,
     expiration_seconds=30,
-    refresh_interval_seconds=20,
+    requote_before_expiry_seconds=10,
     max_markets=30,
     max_position_shares=200,
     max_price_deviation=0.03,
@@ -110,16 +110,16 @@ def test_blackout_windows():
 def test_config_from_settings_and_expiry_must_outlast_refresh():
     s = {
         "quoter": {"min_edge": 0.01, "uncertainty_coefficient": 1.0, "inventory_skew_coefficient": 0.02,
-                   "requote_fair_value_move_ticks": 2, "quote_expiration_seconds": 30,
-                   "refresh_interval_seconds": 20, "quote_size_shares": 20, "max_markets": 30,
+                   "requote_fair_value_move": 0.01, "quote_expiration_seconds": 30,
+                   "requote_before_expiry_seconds": 10, "quote_size_shares": 20, "max_markets": 30,
                    "max_position_shares": 200, "post_only": True, "pull_quotes_before_events": []},
         "risk": {"max_price_deviation_from_fair_value": 0.03},
     }  # fmt: skip
     assert load_quoter_config(s) == CFG
-    s["quoter"]["refresh_interval_seconds"] = 30
-    with pytest.raises(ValueError, match="refresh"):
+    s["quoter"]["requote_before_expiry_seconds"] = 30
+    with pytest.raises(ValueError, match="requote_before_expiry"):
         load_quoter_config(s)
-    s["quoter"]["refresh_interval_seconds"] = 20
+    s["quoter"]["requote_before_expiry_seconds"] = 10
     for size in (0, 0.5):  # never a quote of no shares (e.g. a size scaled down at launch)
         s["quoter"]["quote_size_shares"] = size
         with pytest.raises(ValueError, match="quote_size_shares"):
@@ -141,6 +141,7 @@ class FakeRouter:
             placed = sum(len(v) for v in updates.values())
             blocked = ""
             done = frozenset(updates)
+            expires = {ex: now + timedelta(seconds=30) for ex, v in updates.items() if v}
 
         return R()
 

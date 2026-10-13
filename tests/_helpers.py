@@ -22,3 +22,12 @@ def full_size_ramp() -> SizeRamp:
         rate_limit_window_seconds=600,
     )
     return SizeRamp(config, event_store=EventStore(":memory:"), alerter=_NullAlerter())
+
+
+def send_rules(**overrides):
+    """OrderRouter SendRules for tests: generous pacing unless overridden."""
+    from predcup.orders import SendRules
+
+    base = dict(quote_expiration_seconds=30, min_expiry_margin_seconds=10, cancel_all_max_per_window=1_000,
+                cancel_all_window_seconds=60, max_quote_age_seconds=3_600, rate_limit_pause_seconds=60)  # fmt: skip
+    return SendRules(**{**base, **overrides})

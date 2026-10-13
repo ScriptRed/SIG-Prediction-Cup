@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from _helpers import full_size_ramp
+from _helpers import full_size_ramp, send_rules
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValue
 from predcup.models import Order, OrderStatus
@@ -29,7 +29,7 @@ from sim.mock_exchange import MockExchange
 
 TID = "550e8400-e29b-41d4-a716-446655440000"
 T0 = datetime(2026, 10, 13, 16, 7, 59, 673000, tzinfo=timezone.utc)
-RULES = SendRules(quote_expiration_seconds=30, min_expiry_margin_seconds=10)
+RULES = send_rules()
 
 
 def run(c):
@@ -92,10 +92,11 @@ def test_quantity_below_one_share_or_fractional_is_invalid(qty):
 
 
 def test_send_rules_need_expiry_longer_than_the_margin():
-    s = {"quoter": {"quote_expiration_seconds": 30}, "orders": {"min_expiry_margin_seconds": 10}}
-    assert load_send_rules(s) == RULES
+    orders = {"min_expiry_margin_seconds": 10, "cancel_all_max_per_window": 1_000, "cancel_all_window_seconds": 60,
+              "max_quote_age_seconds": 3_600, "rate_limit_pause_seconds": 60}  # fmt: skip
+    assert load_send_rules({"quoter": {"quote_expiration_seconds": 30}, "orders": orders}) == RULES
     with pytest.raises(ValueError):
-        load_send_rules({"quoter": {"quote_expiration_seconds": 10}, "orders": {"min_expiry_margin_seconds": 10}})
+        load_send_rules({"quoter": {"quote_expiration_seconds": 10}, "orders": orders})
 
 
 # --- the router -----------------------------------------------------------------------
@@ -173,7 +174,7 @@ def test_final_gate_refuses_an_order_that_would_expire_within_the_margin(tmp_pat
     clock = Clock()
     venue = SlowCancelVenue(clock)
     router, store, _ = make_router(tmp_path, venue, clock)
-    router._rules = SendRules(quote_expiration_seconds=5, min_expiry_margin_seconds=10)
+    router._rules = send_rules(quote_expiration_seconds=5, min_expiry_margin_seconds=10)
     run(router.requote({"e1": [(order(), fv(clock))]}, T0))
     assert venue.sent == []
     assert "expires in" in store.all_events("order_refused")[0]["payload"]["reason"]

@@ -142,14 +142,23 @@ loop_lag:
 # within this margin, off-tick, outside [0.005, 0.995] or under 1 share is refused.
 orders:
   min_expiry_margin_seconds: 10
+  # Cancel volume (2026-10-13 first live run: 3x 429 on cancel-all after ~28
+  # cancel-alls in a minute; SIG publishes no rate-limit numbers). Scoped
+  # cancel-alls are paced to this budget, about half the observed trigger;
+  # markets over it wait for a later cycle, most urgent first.
+  cancel_all_max_per_window: 15
+  cancel_all_window_seconds: 60
+  max_requote_retry_wait_seconds: 5 # a re-quote call never sits out a longer Retry-After inline; it gives up instead
+  rate_limit_pause_seconds: 60 # pause all re-quotes this long after a 429 without Retry-After (else Retry-After)
+  max_quote_age_seconds: 10 # quotes priced longer ago (e.g. slow cancels) are not posted; the next cycle re-prices
 
 quoter:
   min_edge: 0.01 # half-spread floor
   uncertainty_coefficient: 1.0 # c: half-spread = max(min_edge, c * uncertainty)
   inventory_skew_coefficient: 0.02 # k: reservation price = fair_value - k * inventory
-  requote_fair_value_move_ticks: 2 # re-quote when fair value moves > 1 point (0.005 tick each)
-  quote_expiration_seconds: 30 # dead-man's switch: every resting quote gets a short expirationDate
-  refresh_interval_seconds: 20 # re-post before quotes expire; must be < quote_expiration_seconds
+  requote_fair_value_move: 0.01 # re-quote a market only when its fair value moves more than this (1 point)...
+  quote_expiration_seconds: 120 # dead-man's switch: every resting quote's expirationDate, stamped at send time
+  requote_before_expiry_seconds: 30 # ...or when this little is left before its quotes expire (or a fill)
   cycle_interval_seconds: 5 # how often the quoter loop runs
   quote_size_shares: 20 # per side; small at launch (the risk size ramp caps notional on top)
   max_markets: 30

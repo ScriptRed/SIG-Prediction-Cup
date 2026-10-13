@@ -11,6 +11,15 @@ The router never cancels tournament-wide: that is only the kill switch
 and shutdown (RiskManager.kill_switch), so manual orders in markets the
 bot doesn't quote survive re-quotes.
 
+Cancel volume (2026-10-13 live run: 429s on cancel-all): scoped cancel-alls
+are paced (CancelPacer: at most orders.cancel_all_max_per_window per
+orders.cancel_all_window_seconds, markets over budget wait for a later
+cycle, in the quoter's priority order). A 429 pauses every re-quote until
+its Retry-After has passed; what was already cancelled is posted at once
+with a fresh expiry, and quotes priced more than
+orders.max_quote_age_seconds ago are never posted. The kill switch is
+never paced.
+
 Shadow mode runs the same risk checks and logs every order it would have
 sent (`shadow_quote`), but never cancels or places anything.
 """
@@ -20,8 +29,9 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from predcup.control import TradingControl
@@ -35,6 +45,7 @@ from predcup.venues.sig import (
     OrderStatusUnknown,
     SigApiError,
     SigOrderRejected,
+    SigRateLimited,
     new_idempotency_key,
 )
 
@@ -47,16 +58,55 @@ class SendRules:
 
     quote_expiration_seconds: float
     min_expiry_margin_seconds: float
+    cancel_all_max_per_window: int  # scoped cancel-alls per sliding window
+    cancel_all_window_seconds: float
+    max_quote_age_seconds: float  # quotes priced longer ago than this are not posted
+    rate_limit_pause_seconds: float  # pause after a 429 that carried no Retry-After
 
 
 def load_send_rules(settings: dict) -> SendRules:
+    o = settings["orders"]
     rules = SendRules(
         quote_expiration_seconds=float(settings["quoter"]["quote_expiration_seconds"]),
-        min_expiry_margin_seconds=float(settings["orders"]["min_expiry_margin_seconds"]),
+        min_expiry_margin_seconds=float(o["min_expiry_margin_seconds"]),
+        cancel_all_max_per_window=int(o["cancel_all_max_per_window"]),
+        cancel_all_window_seconds=float(o["cancel_all_window_seconds"]),
+        max_quote_age_seconds=float(o["max_quote_age_seconds"]),
+        rate_limit_pause_seconds=float(o["rate_limit_pause_seconds"]),
     )
     if rules.quote_expiration_seconds <= rules.min_expiry_margin_seconds:
         raise ValueError("quoter.quote_expiration_seconds must exceed orders.min_expiry_margin_seconds")
+    if rules.cancel_all_max_per_window < 1 or rules.cancel_all_window_seconds <= 0:
+        raise ValueError("orders.cancel_all_max_per_window must be >= 1 and the window positive")
     return rules
+
+
+class CancelPacer:
+    """Sliding-window budget for scoped cancel-alls, plus a pause (a 429's
+    Retry-After) during which nothing is taken."""
+
+    def __init__(self, max_calls: int, window_seconds: float) -> None:
+        self._max = max_calls
+        self._window = timedelta(seconds=window_seconds)
+        self._calls: deque[datetime] = deque()
+        self._paused_until: datetime | None = None
+
+    def pause_until(self, t: datetime) -> None:
+        if self._paused_until is None or t > self._paused_until:
+            self._paused_until = t
+
+    def paused_until(self, now: datetime) -> datetime | None:
+        return self._paused_until if self._paused_until is not None and now < self._paused_until else None
+
+    def take(self, now: datetime) -> bool:
+        if self.paused_until(now) is not None:
+            return False
+        while self._calls and now - self._calls[0] >= self._window:
+            self._calls.popleft()
+        if len(self._calls) >= self._max:
+            return False
+        self._calls.append(now)
+        return True
 
 
 def _utc_now() -> datetime:
@@ -69,7 +119,9 @@ class RouterResult:
     placed: int = 0
     shadow: bool = False
     blocked: str = ""
-    done: frozenset[str] = frozenset()  # markets whose re-quote went through
+    done: frozenset[str] = frozenset()  # markets swept by this re-quote (cancelled and confirmed)
+    deferred: frozenset[str] = frozenset()  # not cancelled this cycle (pacing / Retry-After)
+    expires: dict[str, datetime] = field(default_factory=dict)  # done market -> expiry of its resting quotes
 
 
 class OrderRouter:
@@ -89,6 +141,7 @@ class OrderRouter:
         self._venue = venue
         self._rules = send_rules
         self._clock = clock
+        self._pacer = CancelPacer(send_rules.cancel_all_max_per_window, send_rules.cancel_all_window_seconds)
         self._risk = risk
         self._store = store
         self._tid = tournament_id
@@ -206,7 +259,9 @@ class OrderRouter:
                 self._store.log("shadow_cancel", {"exchange_id": ex})
             for order, fv in approved:
                 self._store.log("shadow_quote", _order_payload(order, fv))
-            return RouterResult(approved=len(approved), shadow=True, done=frozenset(updates))
+            expiry = self._clock() + timedelta(seconds=self._rules.quote_expiration_seconds)
+            return RouterResult(approved=len(approved), shadow=True, done=frozenset(updates),
+                                expires={o.exchange_id: expiry for o, _ in approved})  # fmt: skip
 
         if self._blocked:
             return RouterResult(blocked=self._blocked)
@@ -238,7 +293,21 @@ class OrderRouter:
         # delay the others), then confirm with one read. A market whose cancel
         # failed or timed out is not re-posted this cycle: its old quotes may
         # still rest, so nothing stacks; the next cycle tries it again.
-        markets = list(updates)
+        # Paced: markets over the cancel budget (or all, during a 429 pause)
+        # wait for a later cycle, in the caller's priority order.
+        started = self._clock()
+        markets: list[str] = []
+        deferred: list[str] = []
+        for ex in updates:
+            (markets if self._pacer.take(started) else deferred).append(ex)
+        if deferred:
+            paused = self._pacer.paused_until(started)
+            self._store.log("requote_deferred", {
+                "markets": deferred,
+                "reason": f"rate limited until {paused.isoformat()}" if paused else "cancel-all pacing",
+            })  # fmt: skip
+        if not markets:
+            return RouterResult(deferred=frozenset(deferred))
         results = await asyncio.gather(*(self._venue.cancel_all(self._tid, exchange_id=ex) for ex in markets),
                                        return_exceptions=True)  # fmt: skip
         failed: set[str] = set()
@@ -247,6 +316,8 @@ class OrderRouter:
                 if not isinstance(result, Exception):
                     raise result  # cancellation etc.
                 failed.add(ex)
+                if isinstance(result, SigRateLimited):
+                    self._rate_limited(result, "cancel-all", ex)
                 self._store.log("cancel_failed", {"exchange_id": ex, "error": repr(result)[:200]})
             else:
                 self._store.log("cancel", {"exchange_id": ex, "cancelled": result.cancelled, "remaining": result.remaining})
@@ -255,13 +326,13 @@ class OrderRouter:
         except SigApiError as e:
             self._block(f"open-orders confirm read failed: {e}")
             return RouterResult(blocked=self._blocked)
-        stuck = {o.exchange_id for o in still_open if o.exchange_id in updates} | failed
+        stuck = {o.exchange_id for o in still_open if o.exchange_id in markets} | failed
         if stuck - failed:
             ids = [o.id for o in still_open if o.exchange_id in stuck]
             self._store.log("cancel_incomplete", {"exchange_ids": sorted(stuck), "remaining_order_ids": ids})
             self._alerter.send(f"{len(ids)} order(s) remain open after cancel in {sorted(stuck)}; not re-posting there")
-        done = frozenset(ex for ex in updates if ex not in stuck)
-        for ex in (ex for ex in updates if ex in done):  # input order: deterministic batches
+        done = frozenset(ex for ex in markets if ex not in stuck)
+        for ex in (ex for ex in markets if ex in done):  # input order: deterministic batches
             # Swept quotes keep counting (they may have filled first) until a
             # clean reconciliation has moved any fills into positions.
             self._swept_keys += self._live_keys.pop(ex, [])
@@ -269,17 +340,27 @@ class OrderRouter:
         # 2. Risk-check and record each new order before it is sent, so
         # orders in the same batch count against each other's limits.
         approved = []
-        for order, fv in self._approve([ofv for ex in updates if ex in done for ofv in updates[ex]], now):
+        for order, fv in self._approve([ofv for ex in markets if ex in done for ofv in updates[ex]], now):
             self._risk.record_order(order)  # PENDING, keyed by idempotency key
             approved.append(order)
 
         # 3. Post in batches of <= 50, a fresh key per batch.
+        # Quotes were priced at `now`; if the cancels took too long (slow
+        # venue, retries), they are not posted: the next cycle re-prices.
         placed = 0
         unknown_items = 0
+        expires: dict[str, datetime] = {}
         for i in range(0, len(approved), MAX_BATCH):
             if self._halted():  # a kill landed while earlier chunks were in flight
                 for o in approved[i:]:
                     self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
+                break
+            age = (self._clock() - now).total_seconds()
+            if age > self._rules.max_quote_age_seconds:
+                for o in approved[i:]:
+                    self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
+                self._store.log("requote_stale", {"age_seconds": round(age, 3), "markets": sorted({o.exchange_id for o in approved[i:]}),
+                                                  "max_quote_age_seconds": self._rules.max_quote_age_seconds})  # fmt: skip
                 break
             chunk = self._stamp_and_gate(approved[i : i + MAX_BATCH])
             if not chunk:
@@ -291,6 +372,14 @@ class OrderRouter:
                 # Orders stay PENDING (exposure counted) until reconciliation.
                 self._store.log("batch_status_unknown", {"batch_key": batch_key, "keys": [o.idempotency_key for o in chunk]})
                 self._block(f"batch {batch_key} status unknown (ORDER_STATUS_UNKNOWN)")
+                break
+            except SigRateLimited as e:
+                # Every item rate-limited: nothing placed. Forget them, pause.
+                for o in approved[i:]:
+                    self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
+                self._store.log("batch_rate_limited", {"batch_key": batch_key, "retry_after": e.retry_after,
+                                                       "keys": [o.idempotency_key for o in chunk]})  # fmt: skip
+                self._rate_limited(e, "batch", None)
                 break
             except SigOrderRejected as e:
                 for o in chunk:
@@ -323,6 +412,8 @@ class OrderRouter:
                     self._risk.confirm_order_state(key, r.order.status)
                     if r.order.status in (OrderStatus.OPEN, OrderStatus.PENDING):
                         self._live_keys.setdefault(r.order.exchange_id, []).append(key)
+                        if r.order.expiration_date is not None:
+                            expires[r.order.exchange_id] = r.order.expiration_date
                     placed += 1
                     self._store.log("order", {**_order_payload(r.order, None), "order_id": r.order.id,
                                               "status": r.order.status.value})  # fmt: skip
@@ -337,11 +428,23 @@ class OrderRouter:
                     self._risk.confirm_order_state(key, OrderStatus.REJECTED)
                     self._store.log("order_failed", {"key": key, "status": r.status, "code": r.code, "message": r.message,
                                                      "details": r.details, "order": _order_payload(r.order, None)})  # fmt: skip
-                    if 400 <= r.status < 500 and r.status != 429 and r.order.market_id:
+                    if r.status == 429:
+                        self._rate_limited(None, "batch item", r.order.exchange_id)
+                    elif 400 <= r.status < 500 and r.order.market_id:
                         self._risk.record_order_rejection(r.order.market_id, r.status, r.code, r.message)
         if unknown_items:
             self._block(f"{unknown_items} batch item(s) with unknown outcome (5xx)")
-        return RouterResult(approved=len(approved), placed=placed, done=done, blocked=self._blocked)
+        return RouterResult(approved=len(approved), placed=placed, done=done, blocked=self._blocked,
+                            deferred=frozenset(deferred), expires=expires)  # fmt: skip
+
+    def _rate_limited(self, e: SigRateLimited | None, what: str, exchange_id: str | None) -> None:
+        """Respect Retry-After: no re-quote (cancel or post) until it has
+        passed; the quoter re-prices afterwards, so nothing stale goes out."""
+        retry_after = e.retry_after if e is not None and e.retry_after is not None else self._rules.rate_limit_pause_seconds
+        until = self._clock() + timedelta(seconds=retry_after)
+        self._pacer.pause_until(until)
+        self._store.log("requote_paused", {"what": what, "exchange_id": exchange_id, "retry_after": retry_after,
+                                           "until": until.isoformat()})  # fmt: skip
 
 
     async def place_test_order(self, order: Order) -> Order | None:

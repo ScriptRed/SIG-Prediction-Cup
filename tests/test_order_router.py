@@ -9,11 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from _helpers import full_size_ramp
+from _helpers import full_size_ramp, send_rules
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValue
 from predcup.models import Order, OrderStatus
-from predcup.orders import OrderRouter, SendRules
+from predcup.orders import OrderRouter
 from predcup.risk import RiskDecision, RiskLimits, RiskManager
 from predcup.store import EventStore
 from predcup.venues.base import BatchItemResult
@@ -57,7 +57,7 @@ def make(tmp_path, venue=None, shadow=False, risk=None):
     )  # fmt: skip
     control = TradingControl()
     router = OrderRouter(venue=venue, risk=risk, store=store, tournament_id=TID, shadow=shadow,
-                         alerter=alerts, control=control, send_rules=SendRules(30, 10), clock=lambda: NOW)  # fmt: skip
+                         alerter=alerts, control=control, send_rules=send_rules(), clock=lambda: NOW)  # fmt: skip
     return router, venue, store, alerts, control, risk
 
 
