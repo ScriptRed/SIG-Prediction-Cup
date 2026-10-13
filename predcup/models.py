@@ -31,6 +31,32 @@ def is_on_tick(price: float) -> bool:
     return abs(price - ticks * TICK) < 1e-9
 
 
+def invalid_reason(order: "Order", now: datetime | None, min_expiry_margin_seconds: float) -> str:
+    """Why the venue would (or should) refuse this limit order, '' if none:
+    no limit price, off the 0.005 tick or outside [0.005, 0.995] (market
+    markers 0/1 included), quantity not a whole number of shares >= 1, no
+    expirationDate, or (when `now` is given) an expirationDate already past
+    or closer than the margin. Checked again at the last moment before
+    sending, because model_copy() skips the validators below."""
+    price = order.price
+    if price is None:
+        return "market order (no limit price)"
+    if isinstance(price, bool) or not isinstance(price, (int, float)) or not is_on_tick(price):
+        return f"price {price} is off the 0.005 tick or outside [{MIN_PRICE}, {MAX_PRICE}]"
+    q = order.quantity
+    if isinstance(q, bool) or not isinstance(q, int) or q < 1 or q > MAX_QUANTITY:
+        return f"quantity {q} is not a whole number of shares >= 1"
+    if order.expiration_date is None:
+        return "no expirationDate"
+    if now is not None:
+        left = (order.expiration_date - now).total_seconds()
+        if left <= 0:
+            return f"expired {-left:.1f}s ago"
+        if left < min_expiry_margin_seconds:
+            return f"expires in {left:.1f}s (< {min_expiry_margin_seconds:g}s margin)"
+    return ""
+
+
 class OrderStatus(str, Enum):
     PENDING = "pending"  # submitted locally, not yet confirmed by the venue
     OPEN = "open"  # venue-confirmed resting order

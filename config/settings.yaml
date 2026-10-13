@@ -136,6 +136,13 @@ loop_lag:
   alert_cooldown_seconds: 600 # one loop-lag alert per 10 min across all loops; every reading still logged
   probe_interval_seconds: 0.5
 
+# predcup/orders.py + venues/sig.py: nothing is sent that the venue would
+# reject. expirationDate is stamped at send time (quoter.quote_expiration_seconds
+# from the moment the batch goes out, after any cancel wait); an order expiring
+# within this margin, off-tick, outside [0.005, 0.995] or under 1 share is refused.
+orders:
+  min_expiry_margin_seconds: 10
+
 quoter:
   min_edge: 0.01 # half-spread floor
   uncertainty_coefficient: 1.0 # c: half-spread = max(min_edge, c * uncertainty)

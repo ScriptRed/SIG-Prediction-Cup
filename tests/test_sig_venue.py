@@ -25,6 +25,7 @@ from predcup.venues.sig import (
 BASE = "https://sig.test/api/v1"
 SLUG = "midterm-elections"
 TID = "550e8400-e29b-41d4-a716-446655440000"
+ORDER_TIME = datetime(2026, 10, 1, 17, 0, tzinfo=timezone.utc)
 
 
 class Recorder:
@@ -68,6 +69,7 @@ def make_venue(recorder, rate_limited=None):
         on_rate_limited=(rate_limited if rate_limited is not None else (lambda endpoint, retry_after: None)),
         sleep=fake_sleep,
         max_retries=4,
+        clock=lambda: ORDER_TIME,  # the orders below expire 30 s later
     )
     return venue, sleeps
 
@@ -613,7 +615,7 @@ def make_timed_venue(handler, observed):
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return SigVenue(client, base_url=BASE, api_key="k", tournament_slug=SLUG,
-                    on_rate_limited=lambda e, r: None, sleep=nosleep, max_retries=1, timeouts=TIMEOUTS,
+                    on_rate_limited=lambda e, r: None, sleep=nosleep, max_retries=1, timeouts=TIMEOUTS, clock=lambda: ORDER_TIME,
                     on_request=lambda key, category, seconds, outcome: observed.append((key, category, outcome)))  # fmt: skip
 
 

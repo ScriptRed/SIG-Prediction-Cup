@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValueTracker, KalshiQuote, kalshi_fair_value, load_fair_value_config
 from predcup.looplag import LoopLagMonitor, load_loop_lag_config
-from predcup.orders import OrderRouter
+from predcup.orders import OrderRouter, load_send_rules
 from predcup.pnl import PnlFeed
 from predcup.reconcile import Reconciler
 from predcup.risk import (
@@ -143,7 +143,8 @@ class App:
             daily_pnl_max_age_seconds=float(settings["risk"]["daily_pnl_max_age_seconds"]),
         )  # fmt: skip
         self.router = OrderRouter(venue=venue, risk=self.risk, store=store, tournament_id=tournament_id,
-                                  shadow=shadow, alerter=alerter, control=self.control)  # fmt: skip
+                                  shadow=shadow, alerter=alerter, control=self.control,
+                                  send_rules=load_send_rules(settings), clock=clock)  # fmt: skip
         self.fv_cfg = load_fair_value_config(settings)
         self.fair_values = FairValueTracker(store)
         self.quoter_cfg = load_quoter_config(settings)

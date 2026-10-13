@@ -37,6 +37,7 @@ SETTINGS = {
                "requote_fair_value_move_ticks": 2, "quote_expiration_seconds": 30, "refresh_interval_seconds": 20,
                "cycle_interval_seconds": 0.05, "quote_size_shares": 20, "max_markets": 30,
                "max_position_shares": 200, "post_only": True, "pull_quotes_before_events": []},
+    "orders": {"min_expiry_margin_seconds": 10},
     "venues": {"kalshi": {"poll_interval_seconds": 0.05}},
     "daily_summary": {"time": "08:00", "timezone": "Europe/London", "max_alerts_listed": 10},
     "alerts": {"loop_error_cooldown_seconds": 600},

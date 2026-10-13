@@ -20,12 +20,13 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValue
-from predcup.models import Order, OrderStatus
+from predcup.models import Order, OrderStatus, invalid_reason
 from predcup.risk import Alerter
 from predcup.store import EventStore
 from predcup.venues.base import Venue
@@ -36,6 +37,30 @@ from predcup.venues.sig import (
     SigOrderRejected,
     new_idempotency_key,
 )
+
+
+@dataclass(frozen=True)
+class SendRules:
+    """expirationDate = send time + quote_expiration_seconds, stamped right
+    before each batch goes out (after the cancels, however long they took);
+    nothing is sent expiring sooner than min_expiry_margin_seconds."""
+
+    quote_expiration_seconds: float
+    min_expiry_margin_seconds: float
+
+
+def load_send_rules(settings: dict) -> SendRules:
+    rules = SendRules(
+        quote_expiration_seconds=float(settings["quoter"]["quote_expiration_seconds"]),
+        min_expiry_margin_seconds=float(settings["orders"]["min_expiry_margin_seconds"]),
+    )
+    if rules.quote_expiration_seconds <= rules.min_expiry_margin_seconds:
+        raise ValueError("quoter.quote_expiration_seconds must exceed orders.min_expiry_margin_seconds")
+    return rules
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -58,8 +83,12 @@ class OrderRouter:
         shadow: bool,
         alerter: Alerter,
         control: TradingControl,
+        send_rules: SendRules,
+        clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._venue = venue
+        self._rules = send_rules
+        self._clock = clock
         self._risk = risk
         self._store = store
         self._tid = tournament_id
@@ -117,22 +146,33 @@ class OrderRouter:
         self._store.log("router_blocked", {"reason": reason})
         self._alerter.send(f"Quoting suspended until reconciliation: {reason}")
 
-    def _refusal(self, order: Order) -> str:
-        """Orders the router never sends, whatever risk would say: market
-        orders, and anything without an expirationDate (CLAUDE.md: every
-        resting quote has a short expiry, the dead-man's switch)."""
-        if order.price is None:
-            return "market order (no limit price)"
-        if order.expiration_date is None:
-            return "no expirationDate"
-        return ""
-
-    def _refused(self, order: Order) -> bool:
-        reason = self._refusal(order)
+    def _refused(self, order: Order, now: datetime | None = None) -> bool:
+        """Orders the router never sends, whatever risk would say (models.
+        invalid_reason): market orders, off-tick or out-of-range prices,
+        quantities below one share, no expirationDate (CLAUDE.md: every
+        resting quote has a short expiry, the dead-man's switch) and, given
+        `now`, an expiry already past or within the margin."""
+        reason = invalid_reason(order, now, self._rules.min_expiry_margin_seconds)
         if reason:
             self._store.log("order_refused", {"key": order.idempotency_key, "exchange_id": order.exchange_id,
-                                              "market_id": order.market_id, "reason": reason})  # fmt: skip
+                                              "market_id": order.market_id, "reason": reason,
+                                              "order": _order_payload(order, None)})  # fmt: skip
         return bool(reason)
+
+    def _stamp_and_gate(self, orders: list[Order]) -> list[Order]:
+        """Right before a batch goes out: expirationDate = now + TTL (never
+        the cycle start: a cancel can sit out a long Retry-After), then the
+        final validity gate. Refused orders are forgotten by risk."""
+        now = self._clock()
+        expiry = now + timedelta(seconds=self._rules.quote_expiration_seconds)
+        out = []
+        for o in orders:
+            o = o.model_copy(update={"expiration_date": expiry})
+            if self._refused(o, now):
+                self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
+                continue
+            out.append(o)
+        return out
 
     def _approve(self, orders_with_fv: list[tuple[Order, FairValue]], now: datetime) -> list[tuple[Order, FairValue]]:
         approved = []
@@ -237,11 +277,13 @@ class OrderRouter:
         placed = 0
         unknown_items = 0
         for i in range(0, len(approved), MAX_BATCH):
-            chunk = approved[i : i + MAX_BATCH]
             if self._halted():  # a kill landed while earlier chunks were in flight
                 for o in approved[i:]:
                     self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
                 break
+            chunk = self._stamp_and_gate(approved[i : i + MAX_BATCH])
+            if not chunk:
+                continue
             batch_key = new_idempotency_key()
             try:
                 results = await self._venue.place_batch(chunk, batch_key)
@@ -306,7 +348,7 @@ class OrderRouter:
         """Go-live gate (c)/(d) only: one order through
         RiskManager.check_test_order (1 share, extreme price, every other
         limit). Returns the placed order, or None if refused."""
-        if self._control.halted or self._refused(order):
+        if self._control.halted or self._refused(order, self._clock()):
             return None
         decision = self._risk.check_test_order(order)
         if not decision.approved:

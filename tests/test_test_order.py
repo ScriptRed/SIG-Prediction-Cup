@@ -14,7 +14,7 @@ import pytest
 from _helpers import full_size_ramp
 from predcup.control import TradingControl
 from predcup.models import Order
-from predcup.orders import OrderRouter
+from predcup.orders import OrderRouter, SendRules
 from predcup.risk import RiskLimits, RiskManager
 from predcup.store import EventStore
 from scripts.place_test_order import RefusedError, check_trading_open, choose_test_quote, run_test_order, select_market
@@ -52,7 +52,7 @@ def make(tmp_path, venue=None):
         size_ramp=full_size_ramp(), fusion_race_keys=frozenset(),
     )  # fmt: skip
     router = OrderRouter(venue=venue, risk=risk, store=store, tournament_id=TID, shadow=False,
-                         alerter=Alerts(), control=TradingControl())  # fmt: skip
+                         alerter=Alerts(), control=TradingControl(), send_rules=SendRules(30, 10), clock=lambda: OPEN)  # fmt: skip
     return router, risk, venue, store
 
 

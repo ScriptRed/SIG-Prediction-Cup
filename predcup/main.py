@@ -122,7 +122,8 @@ async def amain(duration: float | None) -> int:
                              tournament_slug=slug, on_rate_limited=relay,
                              timeouts={k: float(v) for k, v in settings["venues"]["sig"]["timeouts"].items()},
                              on_request=health.record,
-                             on_client_error=ClientErrorLog(store))  # every 4xx in full: events_log + journal  # fmt: skip
+                             on_client_error=ClientErrorLog(store),  # every 4xx in full: events_log + journal
+                             min_expiry_margin_seconds=float(settings["orders"]["min_expiry_margin_seconds"]))  # fmt: skip
             tid = await venue.tournament_id()
             configured = settings["platform"].get("tournament_id")
             if configured and configured != tid:

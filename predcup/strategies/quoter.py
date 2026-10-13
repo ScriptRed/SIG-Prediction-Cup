@@ -53,6 +53,12 @@ class QuoterConfig:
     blackouts: tuple[tuple[datetime, datetime], ...]
 
 
+def _whole_shares(value) -> int:
+    if isinstance(value, bool) or float(value) != int(value) or int(value) < 1:
+        raise ValueError(f"quoter.quote_size_shares must be a whole number >= 1, got {value!r}")
+    return int(value)
+
+
 def load_quoter_config(settings: dict) -> QuoterConfig:
     q = settings["quoter"]
     cfg = QuoterConfig(
@@ -60,7 +66,7 @@ def load_quoter_config(settings: dict) -> QuoterConfig:
         uncertainty_coefficient=float(q["uncertainty_coefficient"]),
         inventory_skew_coefficient=float(q["inventory_skew_coefficient"]),
         requote_move=int(q["requote_fair_value_move_ticks"]) * TICK,
-        quote_size=int(q["quote_size_shares"]),
+        quote_size=_whole_shares(q["quote_size_shares"]),
         expiration_seconds=int(q["quote_expiration_seconds"]),
         refresh_interval_seconds=int(q["refresh_interval_seconds"]),
         max_markets=int(q["max_markets"]),

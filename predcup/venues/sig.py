@@ -16,6 +16,11 @@ CLAUDE.md rules implemented here:
   A timeout or network error on an order post is treated the same way.
 - Every 429 is reported through `on_rate_limited` (RiskManager.record_rate_limited).
 - Other 4xx are never retried: SigOrderRejected, for risk.record_order_rejection.
+- Last line of defence: an order that is invalid (models.invalid_reason:
+  tick, range, quantity, expirationDate past or within
+  min_expiry_margin_seconds) is never sent, and a retry whose identical
+  payload would now be expired or too close to expiry is not sent either
+  (OrderStatusUnknown: the caller reconciles).
 - Every 4xx (429s and failed 4xx items of a 207 included) is reported through
   `on_client_error` with the full response body, error details and the
   request body (predcup.apilog.ClientErrorLog: events_log + journal).
@@ -50,6 +55,7 @@ from predcup.models import (
     OrderBookLevel,
     OrderStatus,
     Position,
+    invalid_reason,
 )
 from predcup.venues.base import BatchItemResult, CancelAllResult, Venue
 
@@ -188,6 +194,8 @@ class SigVenue(Venue):
         timeouts: dict[str, float] | None = None,
         on_request: RequestObserver | None = None,
         on_client_error: ClientErrorObserver | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        min_expiry_margin_seconds: float = 0.0,
     ) -> None:
         # Fail closed: 429s must reach the size ramp.
         if on_rate_limited is None:
@@ -209,6 +217,8 @@ class SigVenue(Venue):
         self._timeouts = timeouts
         self._on_request = on_request
         self._on_client_error = on_client_error
+        self._clock = clock
+        self._expiry_margin = min_expiry_margin_seconds
         self._summary: dict | None = None  # startDate / initialBalance don't change
 
     # --- plumbing -------------------------------------------------------------
@@ -229,6 +239,7 @@ class SigVenue(Venue):
         classify: Callable[[httpx.Response, Any], str] | None = None,
         unknown_key: str | None = None,
         rejection: type[SigApiError] = SigApiError,
+        expires_at: datetime | None = None,
     ) -> tuple[httpx.Response, Any]:
         """One logical request with CLAUDE.md's retry rules. The same
         `body` object is re-sent on every attempt (same key, same payload).
@@ -242,6 +253,11 @@ class SigVenue(Venue):
         if self._timeouts is not None:
             extra["timeout"] = float(self._timeouts.get(category, self._timeouts["other"]))
         for attempt in range(self._max_retries + 1):
+            if attempt and expires_at is not None and (expires_at - self._clock()).total_seconds() < self._expiry_margin:
+                # The identical payload would now carry a past or nearly
+                # past expirationDate (400 for the whole batch). Don't send
+                # it; earlier attempts may have placed some of it.
+                raise OrderStatusUnknown(unknown_key or "")
             started = time.monotonic()
             try:
                 resp = await self._client.request(method, f"{self._base}{path}", headers=self._headers,
@@ -368,10 +384,24 @@ class SigVenue(Venue):
             "created_at": datetime.now(timezone.utc),
         })  # fmt: skip
 
+    def _refuse_invalid(self, orders: list[Order]) -> datetime | None:
+        """Raise before anything is sent if an order is invalid; return the
+        earliest expirationDate (retries are checked against it)."""
+        now = self._clock()
+        for o in orders:
+            if o.price is None or (o.action == "buy" and o.price == 1.0) or (o.action == "sell" and o.price == 0.0):
+                continue  # market orders: no expiry, no tick (the router never sends them)
+            reason = invalid_reason(o, now, self._expiry_margin)
+            if reason:
+                raise ValueError(f"refusing to send order {o.idempotency_key}: {reason}")
+        expiries = [o.expiration_date for o in orders if o.expiration_date is not None]
+        return min(expiries) if expiries else None
+
     async def place_order(self, order: Order) -> Order:
         await self._check(order.tournament_id)
+        expires_at = self._refuse_invalid([order])
         body = {**self._order_input(order), "idempotencyKey": order.idempotency_key}
-        _, data = await self._send("POST", "/orders", label="POST /orders", body=body,
+        _, data = await self._send("POST", "/orders", label="POST /orders", body=body, expires_at=expires_at,
                                    unknown_key=order.idempotency_key, rejection=SigOrderRejected)  # fmt: skip
         return self._placed(order, data)
 
@@ -386,6 +416,7 @@ class SigVenue(Venue):
             raise ValueError(f"batch of {len(orders)} exceeds the {MAX_BATCH}-order limit")
         for o in orders:
             await self._check(o.tournament_id)
+        expires_at = self._refuse_invalid(orders)
         body = {"idempotencyKey": batch_key, "orders": [self._order_input(o) for o in orders]}
 
         def classify(resp: httpx.Response, data: Any) -> str | None:
@@ -401,8 +432,8 @@ class SigVenue(Venue):
                 return "unknown"
             return None
 
-        resp, data = await self._send("POST", "/orders/batch", label="POST /orders/batch", body=body,
-                                      classify=classify, unknown_key=batch_key, rejection=SigOrderRejected)  # fmt: skip
+        resp, data = await self._send("POST", "/orders/batch", label="POST /orders/batch", body=body, classify=classify,
+                                      unknown_key=batch_key, rejection=SigOrderRejected, expires_at=expires_at)  # fmt: skip
         out = []
         for r in data.get("results", []):
             o = orders[r["index"]]

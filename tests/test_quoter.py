@@ -119,6 +119,11 @@ def test_config_from_settings_and_expiry_must_outlast_refresh():
     s["quoter"]["refresh_interval_seconds"] = 30
     with pytest.raises(ValueError, match="refresh"):
         load_quoter_config(s)
+    s["quoter"]["refresh_interval_seconds"] = 20
+    for size in (0, 0.5):  # never a quote of no shares (e.g. a size scaled down at launch)
+        s["quoter"]["quote_size_shares"] = size
+        with pytest.raises(ValueError, match="quote_size_shares"):
+            load_quoter_config(s)
 
 
 # --- Quoter cycle -------------------------------------------------------------------

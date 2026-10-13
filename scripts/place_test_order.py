@@ -33,9 +33,10 @@ import httpx
 import yaml
 from dotenv import load_dotenv
 
+from predcup.apilog import ClientErrorLog
 from predcup.control import TradingControl
 from predcup.models import Order
-from predcup.orders import OrderRouter
+from predcup.orders import OrderRouter, load_send_rules
 from predcup.risk import RiskManager, SizeRamp, load_risk_limits, load_size_ramp_config
 from predcup.store import EventStore
 from predcup.venues.sig import SigVenue, new_idempotency_key
@@ -146,7 +147,9 @@ async def amain(args: argparse.Namespace) -> int:
         async with httpx.AsyncClient(timeout=15) as http:
             venue = SigVenue(http, base_url=settings["platform"]["base_url"], api_key=os.environ["SIG_API_KEY"],
                              tournament_slug=settings["platform"]["tournament_slug"],
-                             on_rate_limited=lambda e, r: store.log("rate_limited", {"endpoint": e, "retry_after": r}))  # fmt: skip
+                             on_rate_limited=lambda e, r: store.log("rate_limited", {"endpoint": e, "retry_after": r}),
+                             on_client_error=ClientErrorLog(store),
+                             min_expiry_margin_seconds=float(settings["orders"]["min_expiry_margin_seconds"]))  # fmt: skip
             summary = await venue.tournament_summary()
             now = datetime.now(timezone.utc)
             check_trading_open(summary, now)
@@ -156,7 +159,7 @@ async def amain(args: argparse.Namespace) -> int:
                                size_ramp=SizeRamp(load_size_ramp_config(settings), store, alerter),
                                fusion_race_keys=frozenset())  # fmt: skip
             router = OrderRouter(venue=venue, risk=risk, store=store, tournament_id=tid, shadow=False,
-                                 alerter=alerter, control=TradingControl())  # fmt: skip
+                                 alerter=alerter, control=TradingControl(), send_rules=load_send_rules(settings))  # fmt: skip
             for line in await run_test_order(router=router, venue=venue, tournament_id=tid, market=market,
                                              leave_resting=args.leave_resting, expiry_seconds=expiry, now=now):  # fmt: skip
                 print(line)

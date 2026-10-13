@@ -13,7 +13,7 @@ from _helpers import full_size_ramp
 from predcup.control import TradingControl
 from predcup.fairvalue import FairValue
 from predcup.models import Order, OrderStatus
-from predcup.orders import OrderRouter
+from predcup.orders import OrderRouter, SendRules
 from predcup.risk import RiskDecision, RiskLimits, RiskManager
 from predcup.store import EventStore
 from predcup.venues.base import BatchItemResult
@@ -57,7 +57,7 @@ def make(tmp_path, venue=None, shadow=False, risk=None):
     )  # fmt: skip
     control = TradingControl()
     router = OrderRouter(venue=venue, risk=risk, store=store, tournament_id=TID, shadow=shadow,
-                         alerter=alerts, control=control)  # fmt: skip
+                         alerter=alerts, control=control, send_rules=SendRules(30, 10), clock=lambda: NOW)  # fmt: skip
     return router, venue, store, alerts, control, risk
 
 
@@ -381,7 +381,8 @@ def test_timed_out_batch_keeps_orders_counted_and_blocks_until_reconciled(tmp_pa
         pass
 
     venue = SigVenue(httpx.AsyncClient(transport=httpx.MockTransport(handler)), base_url="https://sig.test/api/v1",
-                     api_key="k", tournament_slug="cup", on_rate_limited=lambda e, r: None, sleep=nosleep)  # fmt: skip
+                     api_key="k", tournament_slug="cup", on_rate_limited=lambda e, r: None, sleep=nosleep,
+                     clock=lambda: NOW)  # fmt: skip
     router, _, store, alerts, _, risk = make(tmp_path, venue=venue)
     res = run(router.requote(upd(order("a")), NOW))  # must not raise
     assert router.blocked and "unknown" in router.blocked.lower()
