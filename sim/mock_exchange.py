@@ -7,15 +7,28 @@ matching engine, no FIFO lot tracking — orders rest until explicitly
 cancelled or filled via `simulate_fill`. Fills are reported the way
 SigVenue.get_new_fills reports them: side = the direction the YES position
 moved (a YES sell shows as a NO-side fill), action "buy".
+
+Soak mode (off by default), after the 2026-10-13 live run:
+- cancel_rate_limit=(n, window_s): more than n cancel-alls in a sliding
+  window -> 429. A scoped cancel-all raises SigRateLimited(retry_after) as
+  SigVenue does when it won't wait; a tournament-wide one (kill switch,
+  whose adapter call waits Retry-After out) is counted, never refused.
+  A call before an earlier Retry-After has passed counts as a violation.
+- strict_orders: a batch with any invalid order (expired, off-tick, outside
+  [0.005, 0.995], under 1 share) is rejected whole, 400 VALIDATION_ERROR,
+  like SIG; resting orders past their expirationDate expire.
+`stats` counts all of it for sim/run_mock.py.
 """
 
 from __future__ import annotations
 
 import itertools
+import time
+from collections import Counter, deque
 from datetime import datetime, timezone
 
-from predcup.models import Fill, Market, Order, OrderBook, OrderStatus, Position
-from predcup.venues.base import CancelAllResult, Venue
+from predcup.models import Fill, Market, Order, OrderBook, OrderStatus, Position, invalid_reason
+from predcup.venues.base import BatchItemResult, CancelAllResult, Venue
 
 
 class MockExchange(Venue):
@@ -25,8 +38,23 @@ class MockExchange(Venue):
         books: dict[str, OrderBook] | None = None,
         starting_balance: float = 100_000.0,
         portfolio_delay=None,  # () -> seconds: simulate SIG's slow portfolio reads (positions, fills, P&L)
+        cancel_rate_limit: tuple[int, float] | None = None,  # (max cancel-alls, window seconds)
+        retry_after_seconds: float = 60.0,
+        strict_orders: bool = False,
+        inject_cancel_429=None,  # () -> bool: an extra 429 on a scoped cancel-all
+        mono=time.monotonic,
+        now=lambda: datetime.now(timezone.utc),
     ) -> None:
         self._portfolio_delay = portfolio_delay
+        self._cancel_limit = cancel_rate_limit
+        self._retry_after = retry_after_seconds
+        self._strict = strict_orders
+        self._inject_429 = inject_cancel_429
+        self._mono = mono
+        self._now = now
+        self._cancel_calls: deque[float] = deque()
+        self._retry_after_until = float("-inf")
+        self.stats: Counter = Counter()
         self._markets = markets or []
         self._books = books or {}
         self._starting_balance = starting_balance
@@ -77,12 +105,69 @@ class MockExchange(Venue):
     async def cancel(self, order_id: str, tournament_id: str) -> None:
         self._orders_for(tournament_id).pop(order_id, None)
 
+    async def _rate_limit_cancel(self, scoped: bool) -> None:
+        """Requests sent together (the router's concurrent per-market
+        cancels) all arrive before any answer: a sibling of a 429 is not an
+        early retry. Only a call that starts after a 429 was answered and
+        before its Retry-After passed counts as a violation."""
+        import asyncio
+
+        from predcup.venues.sig import SigRateLimited
+
+        t = self._mono()
+        self.stats["cancel_all_calls"] += 1
+        self.stats["scoped_cancel_all_calls" if scoped else "tournament_cancel_all_calls"] += 1
+        if self._cancel_limit is None:
+            return
+        n, window = self._cancel_limit
+        while self._cancel_calls and t - self._cancel_calls[0] >= window:
+            self._cancel_calls.popleft()
+        self._cancel_calls.append(t)
+        in_window = len(self._cancel_calls)
+        self.stats["max_cancel_alls_in_window"] = max(self.stats["max_cancel_alls_in_window"], in_window)
+        early = t < self._retry_after_until  # as of arrival
+        await asyncio.sleep(0)  # let concurrent requests arrive before any is answered
+        if not scoped:
+            return
+        if early:
+            self.stats["retry_after_violations"] += 1
+        injected = not early and self._inject_429 is not None and self._inject_429()
+        if early or injected or in_window > n:
+            self.stats["cancel_429" if not injected else "cancel_429_injected"] += 1
+            if not early:  # an early retry is answered with the same, unextended Retry-After
+                self._retry_after_until = max(self._retry_after_until, t + self._retry_after)
+            raise SigRateLimited(429, "RATE_LIMITED", "Too many requests", retry_after=self._retry_after)
+
+    def _expire(self, tournament_id: str) -> None:
+        if not self._strict:
+            return
+        now = self._now()
+        orders = self._orders_for(tournament_id)
+        for oid in [oid for oid, o in orders.items() if o.expiration_date is not None and o.expiration_date <= now]:
+            del orders[oid]
+            self.stats["expired"] += 1
+
+    async def place_batch(self, orders: list[Order], batch_key: str) -> list[BatchItemResult]:
+        if self._strict:
+            from predcup.venues.sig import SigOrderRejected
+
+            now = self._now()
+            bad = [{"index": i, "reason": r} for i, o in enumerate(orders) if (r := invalid_reason(o, now, 0.0))]
+            self.stats["batches"] += 1
+            if bad:
+                self.stats["invalid_batches"] += 1
+                self.stats["invalid_orders"] += len(bad)
+                raise SigOrderRejected(400, "VALIDATION_ERROR", "Validation failed for one or more orders.", {"orders": bad})
+        return await super().place_batch(orders, batch_key)
+
     async def cancel_all(
         self,
         tournament_id: str,
         exchange_id: str | None = None,
         market_id: str | None = None,
     ) -> CancelAllResult:
+        await self._rate_limit_cancel(scoped=exchange_id is not None or market_id is not None)
+        self._expire(tournament_id)
         orders = self._orders_for(tournament_id)
         in_scope_ids = [
             oid
@@ -106,6 +191,7 @@ class MockExchange(Venue):
     async def get_open_orders(
         self, tournament_id: str, exchange_id: str | None = None
     ) -> list[Order]:
+        self._expire(tournament_id)
         orders = self._orders_for(tournament_id).values()
         if exchange_id is not None:
             orders = [o for o in orders if o.exchange_id == exchange_id]

@@ -195,3 +195,98 @@ def test_portfolio_reads_can_be_slowed_without_slowing_the_others():
     run(exchange.get_top_of_books(["36"], TOURNAMENT_A))
     run(exchange.get_open_orders(TOURNAMENT_A))
     assert time.monotonic() - start < 0.05
+
+
+# --- 2026-10-13 soak mode: the mock enforces what the live platform did ----------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from predcup.venues.sig import SigOrderRejected, SigRateLimited  # noqa: E402
+
+
+class _Clock:
+    def __init__(self):
+        self.mono = 0.0
+        self.wall = datetime(2026, 10, 13, 16, 7, tzinfo=timezone.utc)
+
+    def advance(self, s):
+        self.mono += s
+        self.wall += timedelta(seconds=s)
+
+
+def _strict(clock, limit=(3, 60.0), **kw):
+    return MockExchange(cancel_rate_limit=limit, retry_after_seconds=60.0, strict_orders=True,
+                        mono=lambda: clock.mono, now=lambda: clock.wall, **kw)  # fmt: skip
+
+
+def _o(clock, key="k", expires_in=120.0, **kw):
+    fields = dict(exchange_id="e1", market_id="m1", tournament_id="T", side="yes", action="buy", quantity=5,
+                  price=0.5, idempotency_key=key, expiration_date=clock.wall + timedelta(seconds=expires_in))  # fmt: skip
+    fields.update(kw)
+    return Order(**fields)
+
+
+def test_strict_mock_rate_limits_cancel_all_and_counts_early_retries():
+    clock = _Clock()
+    ex = _strict(clock)
+    for _ in range(3):
+        asyncio.run(ex.cancel_all("T", exchange_id="e1"))
+    with pytest.raises(SigRateLimited) as e:
+        asyncio.run(ex.cancel_all("T", exchange_id="e1"))
+    assert e.value.retry_after == 60.0 and ex.stats["cancel_429"] == 1
+    clock.advance(30)
+    with pytest.raises(SigRateLimited):
+        asyncio.run(ex.cancel_all("T", exchange_id="e2"))
+    assert ex.stats["retry_after_violations"] == 1  # called again before Retry-After passed
+    clock.advance(30)
+    asyncio.run(ex.cancel_all("T", exchange_id="e1"))
+    assert ex.stats["retry_after_violations"] == 1
+
+
+def test_strict_mock_tournament_wide_cancel_is_counted_but_never_refused():
+    clock = _Clock()
+    ex = _strict(clock, limit=(1, 60.0))
+    asyncio.run(ex.cancel_all("T", exchange_id="e1"))
+    assert asyncio.run(ex.cancel_all("T")).remaining == 0  # the kill switch (adapter waits Retry-After out)
+    assert ex.stats["cancel_all_calls"] == 2
+
+
+def test_strict_mock_rejects_the_whole_batch_if_any_order_is_invalid():
+    clock = _Clock()
+    ex = _strict(clock)
+    good, expired = _o(clock, "a"), _o(clock, "b", expires_in=-31)
+    with pytest.raises(SigOrderRejected) as e:
+        asyncio.run(ex.place_batch([good, expired], "batch"))
+    assert e.value.status == 400 and e.value.code == "VALIDATION_ERROR"
+    assert e.value.details["orders"][0]["index"] == 1
+    assert asyncio.run(ex.get_open_orders("T")) == [] and ex.stats["invalid_batches"] == 1
+    for bad in (_o(clock).model_copy(update={"quantity": 0}), _o(clock).model_copy(update={"price": 0.4925})):
+        with pytest.raises(SigOrderRejected):
+            asyncio.run(ex.place_batch([bad], "b2"))
+
+
+def test_strict_mock_orders_expire():
+    clock = _Clock()
+    ex = _strict(clock)
+    asyncio.run(ex.place_batch([_o(clock, expires_in=20)], "b"))
+    assert len(asyncio.run(ex.get_open_orders("T"))) == 1
+    clock.advance(20)
+    assert asyncio.run(ex.get_open_orders("T")) == []
+    assert ex.stats["expired"] == 1
+
+
+def test_strict_mock_concurrent_cancels_sent_before_a_429_are_not_violations():
+    clock = _Clock()
+    hits = iter([True, False, False])
+    ex = _strict(clock, limit=(50, 60.0), inject_cancel_429=lambda: next(hits))
+
+    async def burst():
+        return await asyncio.gather(*(ex.cancel_all("T", exchange_id=e) for e in ("e1", "e2", "e3")),
+                                    return_exceptions=True)  # fmt: skip
+
+    results = asyncio.run(burst())
+    assert isinstance(results[0], SigRateLimited) and not isinstance(results[1], Exception)
+    assert ex.stats["retry_after_violations"] == 0
+    with pytest.raises(SigRateLimited):  # a call after the 429 arrived is early
+        asyncio.run(ex.cancel_all("T", exchange_id="e4"))
+    assert ex.stats["retry_after_violations"] == 1

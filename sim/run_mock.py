@@ -8,9 +8,16 @@ mids), random fills of resting quotes, and injected Kalshi outages. Uses
 config/settings.yaml intervals and limits, synthetic verified Tier A
 targets, and its own SQLite file (data/mock_run.db, git-ignored).
 
+The mock runs in soak mode (sim.mock_exchange): it rate-limits cancel-all
+(--cancel-limit, 429 with Retry-After 60, like SIG on 2026-10-13), injects
+the odd extra 429 (--inject-429-prob), rejects whole batches with any
+expired or invalid order (400 VALIDATION_ERROR) and expires resting orders.
+
 At the end it prints a summary and checks invariants: no loop errors, no
 reconciliation mismatch, no unexplained halt, exposure within caps, quotes
-pulled during outages. Exit code 1 if any invariant fails.
+pulled during outages, no cancel-all 429 from our own volume, no call
+before a Retry-After passed, no invalid or expired order sent, no batch
+rejected. Exit code 1 if any invariant fails.
 """
 
 from __future__ import annotations
@@ -91,7 +98,10 @@ async def soak(args: argparse.Namespace) -> int:
     if args.slow_portfolio:
         lo, hi = args.slow_portfolio
         delay = lambda: rng.uniform(lo, hi)  # noqa: E731  SIG's portfolio reads under load
-    venue = MockExchange(starting_balance=100_000.0, portfolio_delay=delay)
+    limit, window = args.cancel_limit
+    venue = MockExchange(starting_balance=100_000.0, portfolio_delay=delay, cancel_rate_limit=(int(limit), window),
+                         retry_after_seconds=60.0, strict_orders=True,
+                         inject_cancel_429=lambda: rng.random() < args.inject_429_prob)  # fmt: skip
     if not isinstance(venue, MockExchange):  # the one place "live" is allowed: never a real venue
         raise SystemExit("run_mock only runs against MockExchange")
     targets, meta = build_targets(args.markets)
@@ -168,6 +178,22 @@ async def soak(args: argparse.Namespace) -> int:
     print(f"risk rejections: {dict(rejections.most_common(6))}")
     print(f"max total exposure {stats['max_total_exposure']:,}; halted: {app.control.halted} {app.control.reason}")
     print(f"final positions: {len(store.local_positions(TID))} markets, alerts {ev['alert']}")
+    ms = venue.stats
+    minutes = max(elapsed / 60, 1e-9)
+    print(f"mock cancel-alls: {ms['cancel_all_calls']} ({ms['cancel_all_calls'] / minutes:.1f}/min; scoped "
+          f"{ms['scoped_cancel_all_calls']}, tournament-wide {ms['tournament_cancel_all_calls']}); max in any "
+          f"{window:g}s window {ms['max_cancel_alls_in_window']} (mock limit {int(limit)})")
+    print(f"mock 429s: from our volume {ms['cancel_429']}, injected {ms['cancel_429_injected']}; "
+          f"calls before Retry-After passed {ms['retry_after_violations']}")
+    print(f"mock batches {ms['batches']}, rejected as invalid {ms['invalid_batches']} ({ms['invalid_orders']} orders); "
+          f"orders expired while resting {ms['expired']}")
+    print(f"router: re-quotes deferred {ev['requote_deferred']}, paused after 429 {ev['requote_paused']}, "
+          f"stale quotes not posted {ev['requote_stale']}, orders refused {ev['order_refused']}, "
+          f"batch rejected {ev['batch_rejected']}, cancel failed {ev['cancel_failed']}")
+    lead = [(datetime.fromisoformat(e["payload"]["expiration_date"]) - datetime.fromisoformat(e["ts"])).total_seconds()
+            for e in store.all_events("order") if e["payload"].get("expiration_date")]  # fmt: skip
+    if lead:
+        print(f"expiry lead time at send (expirationDate - logged): min {min(lead):.1f}s, max {max(lead):.1f}s")
 
     failures = []
     if ev["loop_error"]:
@@ -180,6 +206,14 @@ async def soak(args: argparse.Namespace) -> int:
         failures.append("total exposure above cap")
     if not ev["order"]:
         failures.append("no orders placed")
+    if ms["cancel_429"]:
+        failures.append(f"{ms['cancel_429']} cancel-all 429s from our own volume")
+    if ms["retry_after_violations"]:
+        failures.append(f"{ms['retry_after_violations']} cancel-alls before Retry-After had passed")
+    if ms["invalid_batches"] or ev["batch_rejected"]:
+        failures.append(f"{ms['invalid_batches']} invalid batches sent, {ev['batch_rejected']} batch rejections")
+    if lead and min(lead) < float(settings["orders"]["min_expiry_margin_seconds"]):
+        failures.append(f"an order went out {min(lead):.1f}s before its expiry")
     for f in failures:
         print(f"INVARIANT FAILED: {f}")
     store.close()
@@ -193,6 +227,10 @@ def main() -> int:
     p.add_argument("--fill-prob", type=float, default=0.03)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--db", default="data/mock_run.db")
+    p.add_argument("--cancel-limit", type=float, nargs=2, metavar=("N", "WINDOW"), default=(25, 60),
+                   help="mock answers 429 (Retry-After 60) above N cancel-alls per WINDOW seconds")
+    p.add_argument("--inject-429-prob", type=float, default=0.01,
+                   help="chance of an extra 429 on any scoped cancel-all (exercises the Retry-After path)")
     p.add_argument("--slow-portfolio", type=float, nargs=2, metavar=("MIN", "MAX"), default=None,
                    help="delay each positions/fills/P&L read by uniform(MIN, MAX) seconds")
     return asyncio.run(soak(p.parse_args()))
