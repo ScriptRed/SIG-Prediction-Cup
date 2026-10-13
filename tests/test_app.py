@@ -1,10 +1,12 @@
-"""predcup/app.py: wiring for the trading process in shadow mode. Live mode
-is refused until the user says go (PLAN launch status)."""
+"""predcup/app.py: wiring for the trading process. Live mode needs both
+LIVE_ENABLED (the recorded go decision, docs/PLAN.md) and live_allowed."""
 
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -110,8 +112,14 @@ def run(c):
     return asyncio.run(c)
 
 
-def test_live_mode_is_disabled_in_this_build():
-    assert LIVE_ENABLED is False
+def test_live_mode_matches_the_recorded_go_decision():
+    # Live trading is on since the user's go (2026-10-13, 1fd9e9f). The flag
+    # must agree with the decision line in docs/PLAN.md, so flipping it either
+    # way takes a deliberate docs change in the same commit, not a stray edit.
+    plan = (Path(__file__).resolve().parents[1] / "docs" / "PLAN.md").read_text(encoding="utf-8")
+    decisions = re.findall(r"^Live trading: (ENABLED|DISABLED)\b", plan, flags=re.M)
+    assert len(decisions) == 1, "docs/PLAN.md needs exactly one 'Live trading: ENABLED|DISABLED' line"
+    assert LIVE_ENABLED is (decisions[0] == "ENABLED")
 
 
 def test_live_mode_refused_without_explicit_permission(tmp_path):

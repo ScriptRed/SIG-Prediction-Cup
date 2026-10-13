@@ -2,6 +2,8 @@
 
 ## Launch status (updated as each piece lands; no live automated orders until every item is done and the user says go)
 
+Live trading: ENABLED (user go decision 2026-10-13, commit 1fd9e9f). `predcup.app.LIVE_ENABLED` must match this line; `tests/test_app.py` fails otherwise, so turning live mode on or off is a deliberate change to both.
+
 - [x] NH/VT Governor Kalshi mapping (VT → GOVPARTYVT-26; NH stays on GOVPARTYNH-28, which is the 2026 race)
 - [x] launch_report: tradeable-edge columns, unmapped-race section, "trade by hand at the open" list
 - [x] LAUNCH_CHECKLIST §D: SIG seed quotes vs Kalshi moves

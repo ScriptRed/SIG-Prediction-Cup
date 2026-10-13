@@ -2,9 +2,9 @@
 order router, risk manager, size ramp, fusion set, loop-lag metric and the
 halt/kill path. main.py only reads config and secrets and calls this.
 
-Shadow mode is the only mode this build runs: LIVE_ENABLED is False and
-App refuses shadow=False unless live_allowed is passed explicitly (tests
-only). Going live is a code change the user approves (PLAN launch status).
+Live mode needs LIVE_ENABLED (True since the user's go on 2026-10-13; it
+must match the "Live trading:" line in docs/PLAN.md, tests/test_app.py
+enforces it) and App refuses shadow=False unless live_allowed is passed.
 
 Safety wiring (predcup/killfile.py, predcup/alerts.py):
 - App.kill(reason): the one kill path, for the KILL file watcher, Telegram
@@ -53,7 +53,7 @@ from predcup.store import EventStore
 from predcup.strategies.quoter import QuoteTarget, Quoter, load_quoter_config
 from predcup.venues.kalshi import KalshiMarket
 
-LIVE_ENABLED = True  # flip only when the user says go (docs/PLAN.md launch status)
+LIVE_ENABLED = True  # must match docs/PLAN.md "Live trading:" (the user's go decision)
 
 
 @dataclass(frozen=True)
