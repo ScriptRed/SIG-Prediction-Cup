@@ -161,7 +161,6 @@ class App:
             max_read_failures=int(settings["risk"]["reconciliation_max_read_failures"]),
             fair_value_of=self._fresh_fair_value,
             max_sig_spread=float(settings["markouts"]["max_sig_spread"]),
-            clock_margin_seconds=float(settings["risk"]["reconciliation_clock_margin_seconds"]),
         )  # fmt: skip
         self.pnl_feed = PnlFeed(
             venue=venue, store=store, risk=self.risk, alerter=alerter, tournament_id=tournament_id, shadow=shadow,
