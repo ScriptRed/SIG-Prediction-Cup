@@ -688,3 +688,67 @@ def test_http_errors_are_observed_by_status():
     with pytest.raises(SigApiError):
         run(venue.get_positions(TID))
     assert [o for k, c, o in observed if c == "portfolio"] == ["http_503", "http_503"]
+
+
+# --- 2026-10-13 live run: a whole-batch 400 VALIDATION_ERROR left no details anywhere ------
+# Every 4xx goes to on_client_error with the full error body (details
+# included) and the request body, so the journal and events_log can say
+# which order failed validation and why.
+
+
+def make_logged_venue(recorder):
+    seen: list[dict] = []
+    venue, sleeps = make_venue(recorder)
+    venue._on_client_error = seen.append
+    return venue, seen
+
+
+def test_whole_batch_400_reports_full_body_with_details_and_the_request():
+    body = err("VALIDATION_ERROR", "Validation failed for one or more orders.",
+               orders=[{"index": 0, "field": "expirationDate", "message": "must be in the future"}])  # fmt: skip
+    venue, seen = make_logged_venue(Recorder([(400, body, None)]))
+    with pytest.raises(SigOrderRejected) as e:
+        run(venue.place_batch([order()], batch_key="b-400"))
+    assert e.value.details == body["error"]["details"]
+    [rec] = seen
+    assert rec["endpoint"] == "POST /orders/batch" and rec["status"] == 400
+    assert rec["code"] == "VALIDATION_ERROR" and rec["details"] == body["error"]["details"]
+    assert rec["body"] == body  # the whole response, not just code/message
+    assert rec["request"]["idempotencyKey"] == "b-400"
+    assert rec["request"]["orders"][0]["expirationDate"] == "2026-10-01T17:00:30Z"
+
+
+def test_429_is_reported_with_retry_after():
+    venue, seen = make_logged_venue(Recorder([(429, err("RATE_LIMITED"), {"Retry-After": "2"}),
+                                              (200, {"cancelled": 0, "errors": []}, None)]))  # fmt: skip
+    run(venue.cancel_all(TID, exchange_id="1077"))
+    [rec] = seen
+    assert rec["status"] == 429 and rec["retry_after"] == 2.0 and rec["endpoint"] == "POST /orders/cancel-all"
+
+
+def test_failed_4xx_item_in_a_207_is_reported():
+    res_body = {"results": [_item(0, orderId=1, open=True),
+                            _item(1, status=400, ok=False, error={"code": "INSUFFICIENT_BALANCE", "message": "no",
+                                                                  "details": {"needed": 5}})]}  # fmt: skip
+    venue, seen = make_logged_venue(Recorder([(207, res_body, None)]))
+    run(venue.place_batch([order(idempotency_key="a"), order(idempotency_key="b")], batch_key="b-207"))
+    [rec] = seen
+    assert rec["status"] == 400 and rec["code"] == "INSUFFICIENT_BALANCE" and rec["details"] == {"needed": 5}
+    assert rec["item_index"] == 1 and rec["request"]["exchangeId"] == "1077"
+
+
+def test_success_and_5xx_are_not_reported_as_client_errors():
+    venue, seen = make_logged_venue(Recorder([(503, err("SERVICE_UNAVAILABLE"), None), (200, PLACED, None)]))
+    run(venue.place_order(order()))
+    assert seen == []
+
+
+def test_a_failing_client_error_hook_never_breaks_the_request():
+    venue, _ = make_venue(Recorder([(400, err("VALIDATION_ERROR"), None)]))
+
+    def boom(_):
+        raise RuntimeError("logger down")
+
+    venue._on_client_error = boom
+    with pytest.raises(SigOrderRejected):
+        run(venue.place_order(order()))

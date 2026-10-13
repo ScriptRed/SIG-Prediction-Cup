@@ -16,6 +16,9 @@ CLAUDE.md rules implemented here:
   A timeout or network error on an order post is treated the same way.
 - Every 429 is reported through `on_rate_limited` (RiskManager.record_rate_limited).
 - Other 4xx are never retried: SigOrderRejected, for risk.record_order_rejection.
+- Every 4xx (429s and failed 4xx items of a 207 included) is reported through
+  `on_client_error` with the full response body, error details and the
+  request body (predcup.apilog.ClientErrorLog: events_log + journal).
 
 Hard rule 1: nothing outside the order router may call place_order or
 place_batch (enforced by tests/test_order_path.py once the router exists).
@@ -116,6 +119,7 @@ def endpoint_category(path: str) -> str:
 
 
 RequestObserver = Callable[[str, str, float, str], None]  # (endpoint key, category, seconds, outcome)
+ClientErrorObserver = Callable[[dict], None]  # one record per 4xx, see SigVenue._report_client_error
 
 
 def _ts(value: str) -> datetime:
@@ -183,6 +187,7 @@ class SigVenue(Venue):
         backoff_cap_seconds: float = 30.0,
         timeouts: dict[str, float] | None = None,
         on_request: RequestObserver | None = None,
+        on_client_error: ClientErrorObserver | None = None,
     ) -> None:
         # Fail closed: 429s must reach the size ramp.
         if on_rate_limited is None:
@@ -203,6 +208,7 @@ class SigVenue(Venue):
         # None leaves the client's default. on_request sees every attempt.
         self._timeouts = timeouts
         self._on_request = on_request
+        self._on_client_error = on_client_error
         self._summary: dict | None = None  # startDate / initialBalance don't change
 
     # --- plumbing -------------------------------------------------------------
@@ -258,6 +264,12 @@ class SigVenue(Venue):
             code, message, details = _error_of(data)
             retry_after = _retry_after_seconds(resp.headers.get("Retry-After"))
             status = resp.status_code
+            if 400 <= status < 500:
+                self._report_client_error({
+                    "endpoint": key, "status": status, "code": code, "message": message, "details": details,
+                    "retry_after": retry_after, "body": data if data is not None else resp.text[:4000],
+                    "request": body if body is not None else params, "attempt": attempt,
+                })  # fmt: skip
 
             verdict = classify(resp, data) if classify else None
             if verdict is None:
@@ -285,6 +297,13 @@ class SigVenue(Venue):
                 return resp, data  # retries exhausted on a partial result: report it as is
             raise SigApiError(status, code or str(status), message or "retries exhausted", details)
         raise AssertionError("unreachable")  # pragma: no cover
+
+    def _report_client_error(self, record: dict) -> None:
+        if self._on_client_error is not None:
+            try:
+                self._on_client_error(record)
+            except Exception:  # logging must never break a request
+                pass
 
     def _observe(self, key: str, category: str, started: float, outcome: str) -> None:
         if self._on_request is not None:
@@ -382,8 +401,8 @@ class SigVenue(Venue):
                 return "unknown"
             return None
 
-        _, data = await self._send("POST", "/orders/batch", label="POST /orders/batch", body=body,
-                                   classify=classify, unknown_key=batch_key, rejection=SigOrderRejected)  # fmt: skip
+        resp, data = await self._send("POST", "/orders/batch", label="POST /orders/batch", body=body,
+                                      classify=classify, unknown_key=batch_key, rejection=SigOrderRejected)  # fmt: skip
         out = []
         for r in data.get("results", []):
             o = orders[r["index"]]
@@ -391,9 +410,18 @@ class SigVenue(Venue):
             if r.get("ok"):
                 out.append(BatchItemResult(r["index"], True, r.get("status", 200), self._placed(o, item)))
             else:
-                code = item.get("code") or (item.get("error") or {}).get("code", "")
-                message = item.get("message") or (item.get("error") or {}).get("message", "")
-                out.append(BatchItemResult(r["index"], False, r.get("status", 0), o, code, message))
+                error = item.get("error") or {}
+                code = item.get("code") or error.get("code", "")
+                message = item.get("message") or error.get("message", "")
+                details = item.get("details") or error.get("details") or {}
+                status = r.get("status", 0)
+                out.append(BatchItemResult(r["index"], False, status, o, code, message, details))
+                if 400 <= status < 500 and resp.status_code < 400:  # a 4xx response was reported whole already
+                    self._report_client_error({
+                        "endpoint": "POST /orders/batch", "status": status, "code": code, "message": message,
+                        "details": details, "retry_after": None, "body": r, "item_index": r["index"],
+                        "request": body["orders"][r["index"]], "batch_key": batch_key,
+                    })  # fmt: skip
         return out
 
     async def cancel(self, order_id: str, tournament_id: str) -> None:

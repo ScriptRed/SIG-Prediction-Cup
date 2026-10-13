@@ -18,6 +18,7 @@ sent (`shadow_quote`), but never cancels or places anything.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -252,9 +253,12 @@ class OrderRouter:
             except SigOrderRejected as e:
                 for o in chunk:
                     self._risk.confirm_order_state(o.idempotency_key, OrderStatus.REJECTED)
-                self._store.log("batch_rejected", {"batch_key": batch_key, "status": e.status, "code": e.code, "message": e.message})
+                self._store.log("batch_rejected", {"batch_key": batch_key, "status": e.status, "code": e.code,
+                                                   "message": e.message, "details": e.details,
+                                                   "orders": [_order_payload(o, None) for o in chunk]})  # fmt: skip
                 self._control.halt(f"whole batch rejected: {e.status} {e.code} {e.message}")
-                self._alerter.send(f"Trading halted: whole batch rejected ({e.status} {e.code}: {e.message})")
+                detail = f" {json.dumps(e.details)[:300]}" if e.details else ""
+                self._alerter.send(f"Trading halted: whole batch rejected ({e.status} {e.code}: {e.message}){detail}")
                 break
             except SigApiError as e:
                 # Retries exhausted (429/503): some items may be live.
@@ -289,7 +293,8 @@ class OrderRouter:
                     unknown_items += 1
                 else:
                     self._risk.confirm_order_state(key, OrderStatus.REJECTED)
-                    self._store.log("order_failed", {"key": key, "status": r.status, "code": r.code, "message": r.message})
+                    self._store.log("order_failed", {"key": key, "status": r.status, "code": r.code, "message": r.message,
+                                                     "details": r.details, "order": _order_payload(r.order, None)})  # fmt: skip
                     if 400 <= r.status < 500 and r.status != 429 and r.order.market_id:
                         self._risk.record_order_rejection(r.order.market_id, r.status, r.code, r.message)
         if unknown_items:

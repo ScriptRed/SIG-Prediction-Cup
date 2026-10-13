@@ -441,3 +441,33 @@ def test_one_failing_cancel_only_skips_that_market(tmp_path):
     assert {o.exchange_id for b in venue.batches for o in b} == {"e1", "e3"}
     assert store.all_events("cancel_failed")[0]["payload"]["exchange_id"] == "e2"
     assert not router.blocked  # a transient cancel failure doesn't suspend everything
+
+
+# --- 2026-10-13: rejection details reach events_log ------------------------------------
+
+
+class DetailedValidationVenue(SpyVenue):
+    async def place_batch(self, orders, batch_key):
+        raise SigOrderRejected(400, "VALIDATION_ERROR", "Validation failed for one or more orders.",
+                               {"orders": [{"index": 0, "field": "expirationDate"}]})  # fmt: skip
+
+
+def test_batch_rejected_event_carries_details_and_the_orders(tmp_path):
+    router, _, store, *_ = make(tmp_path, venue=DetailedValidationVenue())
+    run(router.requote(upd(order("a")), NOW))
+    [ev] = store.all_events("batch_rejected")
+    assert ev["payload"]["details"] == {"orders": [{"index": 0, "field": "expirationDate"}]}
+    assert [o["key"] for o in ev["payload"]["orders"]] == ["a"]
+    assert ev["payload"]["orders"][0]["expiration_date"] is not None
+
+
+class DetailedItemVenue(SpyVenue):
+    async def place_batch(self, orders, batch_key):
+        return [BatchItemResult(0, False, 400, orders[0], "INSUFFICIENT_BALANCE", "no", {"needed": 5})]
+
+
+def test_order_failed_event_carries_details(tmp_path):
+    router, _, store, *_ = make(tmp_path, venue=DetailedItemVenue())
+    run(router.requote(upd(order("a")), NOW))
+    [ev] = store.all_events("order_failed")
+    assert ev["payload"]["details"] == {"needed": 5}

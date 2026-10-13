@@ -26,6 +26,7 @@ import httpx
 import yaml
 from dotenv import load_dotenv
 
+from predcup.apilog import ClientErrorLog
 from predcup.app import LIVE_ENABLED, App, LogAlerter, load_targets
 from predcup.edge_watch import register_edge_watcher
 from predcup.health import SigHealth, load_health_config
@@ -120,7 +121,8 @@ async def amain(duration: float | None) -> int:
             venue = SigVenue(sig_http, base_url=settings["platform"]["base_url"], api_key=api_key,
                              tournament_slug=slug, on_rate_limited=relay,
                              timeouts={k: float(v) for k, v in settings["venues"]["sig"]["timeouts"].items()},
-                             on_request=health.record)  # fmt: skip
+                             on_request=health.record,
+                             on_client_error=ClientErrorLog(store))  # every 4xx in full: events_log + journal  # fmt: skip
             tid = await venue.tournament_id()
             configured = settings["platform"].get("tournament_id")
             if configured and configured != tid:

@@ -11,7 +11,7 @@ see docs/platform/SUMMARY.md). Never give these parameters a default.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel
 
@@ -35,6 +35,7 @@ class BatchItemResult:
     order: Order  # with venue id and status when ok
     code: str = ""
     message: str = ""
+    details: dict = field(default_factory=dict)  # error.details of a failed item
 
 
 class Venue(ABC):
